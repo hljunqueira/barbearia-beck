@@ -1,0 +1,97 @@
+@layer base {
+    :root {
+        /* Beck Barbearia — tema escuro premium (preto / dourado / creme) */
+        --background: 0 0% 4%;
+        --foreground: 40 30% 94%;
+        --card: 0 0% 9%;
+        --card-foreground: 40 30% 94%;
+        --popover: 0 0% 9%;
+        --popover-foreground: 40 30% 94%;
+        --primary: 46 67% 47%;
+        --primary-foreground: 0 0% 4%;
+        --secondary: 0 0% 11%;
+        --secondary-foreground: 40 30% 94%;
+        --muted: 0 0% 14%;
+        --muted-foreground: 0 0% 62%;
+        --accent: 46 67% 47%;
+        --accent-foreground: 0 0% 4%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 0 0% 16%;
+        --input: 0 0% 16%;
+        --ring: 46 67% 47%;
+        --chart-1: 46 67% 47%;
+        --chart-2: 43 74% 66%;
+        --chart-3: 40 30% 94%;
+        --chart-4: 0 0% 40%;
+        --chart-5: 0 0% 62%;
+        --radius: 0.5rem;
+        --sidebar-background: 0 0% 6%;
+        --sidebar-foreground: 40 30% 94%;
+        --sidebar-primary: 46 67% 47%;
+        --sidebar-primary-foreground: 0 0% 4%;
+        --sidebar-accent: 0 0% 12%;
+        --sidebar-accent-foreground: 40 30% 94%;
+        --sidebar-border: 0 0% 16%;
+        --sidebar-ring: 46 67% 47%;
+    }
+
+    .dark {
+        --background: 0 0% 4%;
+        --foreground: 40 30% 94%;
+        --card: 0 0% 9%;
+        --card-foreground: 40 30% 94%;
+        --popover: 0 0% 9%;
+        --popover-foreground: 40 30% 94%;
+        --primary: 46 67% 47%;
+        --primary-foreground: 0 0% 4%;
+        --secondary: 0 0% 11%;
+        --secondary-foreground: 40 30% 94%;
+        --muted: 0 0% 14%;
+        --muted-foreground: 0 0% 62%;
+        --accent: 46 67% 47%;
+        --accent-foreground: 0 0% 4%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 0 0% 16%;
+        --input: 0 0% 16%;
+        --ring: 46 67% 47%;
+    }
+
+    * {
+        @apply border-border;
+    }
+
+    html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+        @apply bg-background text-foreground antialiased;
+        margin: 0;
+    }
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Scrollbar discreta, coerente com o tema */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #2a2a2a;
+    border-radius: 999px;
+    border: 2px solid #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #c9a227;
+}

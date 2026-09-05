@@ -1,0 +1,86 @@
+// Beck Barbearia — fundação do banco de dados
+// Provider: MongoDB (Prisma 6). IDs em UUID (sem ObjectId) para serialização simples.
+// Uso: npx prisma generate | npx prisma db push
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum BillingCycle {
+  monthly
+  quarterly
+  yearly
+}
+
+enum ProductCategory {
+  pomada
+  oleo
+  balm
+  kit
+}
+
+enum SubscriptionStatus {
+  pending
+  active
+  past_due
+  canceled
+}
+
+type PlanFeature {
+  label    String
+  included Boolean @default(true)
+}
+
+model Plan {
+  id           String        @id @default(uuid()) @map("_id")
+  slug         String        @unique
+  name         String
+  tagline      String
+  priceInCents Int
+  currency     String        @default("BRL")
+  billingCycle BillingCycle  @default(monthly)
+  features     PlanFeature[]
+  highlighted  Boolean       @default(false)
+  badge        String?
+  karfexPlanId String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Product {
+  id                    String          @id @default(uuid()) @map("_id")
+  slug                  String          @unique
+  name                  String
+  category              ProductCategory
+  description           String
+  priceInCents          Int
+  compareAtPriceInCents Int?
+  imageUrl              String
+  inStock               Boolean         @default(true)
+  rating                Float           @default(5)
+  karfexProductId       String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+model Subscription {
+  id                   String             @id @default(uuid()) @map("_id")
+  customerName         String
+  customerEmail        String
+  customerPhone        String?
+  status               SubscriptionStatus @default(pending)
+  karfexSubscriptionId String?
+  planId               String
+  plan                 Plan               @relation(fields: [planId], references: [id])
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([customerEmail])
+}
