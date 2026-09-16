@@ -12,15 +12,18 @@ import {
   Scissors,
   ShieldAlert,
   User,
+  UserPlus,
   XCircle,
 } from 'lucide-react';
-import type { Appointment, Subscription } from '@/types';
+import type { Appointment, Subscription, Barber } from '@/types';
 import {
   bookAppointment,
   findCustomerSubscription,
   listAppointments,
   updateAppointmentStatus,
+  registerCustomerSubscriptionAction,
 } from '@/app/actions/subscriptionActions';
+import { listBarbersAction } from '@/app/actions/barberActions';
 import { getTimeSlotsForDay, isAllowedClubDay } from '@/lib/data/subscriptions';
 import { whatsappLink } from '@/lib/site';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
@@ -33,6 +36,19 @@ export default function AssinantePage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
+  // Modo de Autenticação: Login ou Novo Cadastro
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [regName, setRegName] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPlan, setRegPlan] = useState<'corte-barba' | 'corte' | 'barba'>('corte-barba');
+  const [regLoading, setRegLoading] = useState(false);
+  const [regError, setRegError] = useState<string | null>(null);
+
+  // Barbeiros da equipe para agendamento
+  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [selectedBarber, setSelectedBarber] = useState<string>('');
+
   // Estado do formulário de agendamento
   const [selectedDateStr, setSelectedDateStr] = useState<string>('');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
@@ -40,11 +56,20 @@ export default function AssinantePage() {
   const [bookingSuccess, setBookingSuccess] = useState<Appointment | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
 
-  // Carregar dados salvos no localStorage ou via query param (?phone= ou ?demo=)
+  // Carregar dados salvos no localStorage ou via query param (?phone=)
   useEffect(() => {
+    // Carregar barbeiros ativos da equipe
+    listBarbersAction().then((data) => {
+      const activeOnly = data.filter((b) => b.active);
+      setBarbers(activeOnly);
+      if (activeOnly.length > 0) {
+        setSelectedBarber(activeOnly[0].name);
+      }
+    });
+
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const queryPhone = params.get('phone') || params.get('demo');
+      const queryPhone = params.get('phone');
       const targetPhone = queryPhone || localStorage.getItem('beck_subscriber_phone');
       if (targetPhone) {
         setIdentifier(targetPhone);
@@ -59,7 +84,7 @@ export default function AssinantePage() {
     try {
       const sub = await findCustomerSubscription(phoneOrEmail);
       if (!sub) {
-        setError('Nenhuma assinatura encontrada com esse telefone ou e-mail. Verifique os dados ou fale com a recepção.');
+        setError('Nenhuma assinatura encontrada com esse telefone ou e-mail. Verifique os dados ou crie seu cadastro ao lado.');
         setSubscription(null);
       } else {
         setSubscription(sub);
@@ -71,6 +96,32 @@ export default function AssinantePage() {
       setError('Erro ao verificar assinatura. Tente novamente.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegLoading(true);
+    setRegError(null);
+    try {
+      const res = await registerCustomerSubscriptionAction({
+        customerName: regName,
+        customerPhone: regPhone,
+        customerEmail: regEmail.trim() || undefined,
+        planSlug: regPlan,
+      });
+
+      if (!res.ok || !res.subscription) {
+        setRegError(res.error || 'Falha ao registrar cadastro.');
+      } else {
+        setSubscription(res.subscription);
+        localStorage.setItem('beck_subscriber_phone', res.subscription.customerPhone);
+        setAppointments([]);
+      }
+    } catch {
+      setRegError('Erro ao processar cadastro. Tente novamente.');
+    } finally {
+      setRegLoading(false);
     }
   };
 
@@ -114,6 +165,7 @@ export default function AssinantePage() {
       date: selectedDateStr,
       timeSlot: selectedTimeSlot,
       notes,
+      barberName: selectedBarber || 'Barbeiro da Equipe',
     });
 
     setBookingLoading(false);
@@ -188,86 +240,215 @@ export default function AssinantePage() {
         {/* CASO NÃO ESTEJA AUTENTICADO: TELA DE LOGIN */}
         {!subscription ? (
           <div className="mx-auto max-w-md">
-            <div className="rounded-2xl border border-brand-gold/30 bg-brand-graphite/80 p-8 shadow-card backdrop-blur-md sm:p-10">
-              <div className="text-center">
-                <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-brand-gold/40 bg-brand-black text-brand-gold shadow-gold">
-                  <User className="h-6 w-6" />
-                </span>
-                <h1 className="mt-4 font-display text-2xl font-bold uppercase tracking-wide text-brand-cream">
-                  Área do Assinante
-                </h1>
-                <p className="mt-2 text-xs leading-relaxed text-brand-cream/70">
-                  Informe o telefone ou e-mail cadastrado na sua assinatura para agendar seus horários.
-                </p>
+            <div className="rounded-2xl border border-brand-gold/30 bg-brand-graphite/80 p-6 shadow-card backdrop-blur-md sm:p-9">
+              {/* Alternador de Modo: Login vs Cadastro */}
+              <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-white/10 bg-brand-black/70 p-1 mb-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('login');
+                    setError(null);
+                    setRegError(null);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 rounded py-2 text-xs font-bold uppercase tracking-wider font-display transition ${
+                    authMode === 'login'
+                      ? 'bg-brand-gold text-brand-black shadow-gold'
+                      : 'text-brand-cream/60 hover:text-brand-cream'
+                  }`}
+                >
+                  <User size={13} />
+                  <span>Já Sou Assinante</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('register');
+                    setError(null);
+                    setRegError(null);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 rounded py-2 text-xs font-bold uppercase tracking-wider font-display transition ${
+                    authMode === 'register'
+                      ? 'bg-brand-gold text-brand-black shadow-gold'
+                      : 'text-brand-cream/60 hover:text-brand-cream'
+                  }`}
+                >
+                  <UserPlus size={13} />
+                  <span>Criar Cadastro</span>
+                </button>
               </div>
 
-              {error && (
-                <div className="mt-6 flex items-start gap-2.5 rounded-lg border border-red-500/40 bg-red-950/40 p-3.5 text-xs text-red-200">
-                  <ShieldAlert className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
-                  <span>{error}</span>
+              {/* MODO 1: LOGIN SIMPLES */}
+              {authMode === 'login' ? (
+                <div>
+                  <div className="text-center">
+                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-brand-gold/40 bg-brand-black text-brand-gold shadow-gold">
+                      <User className="h-6 w-6" />
+                    </span>
+                    <h1 className="mt-4 font-display text-xl sm:text-2xl font-bold uppercase tracking-wide text-brand-cream">
+                      Área do Assinante
+                    </h1>
+                    <p className="mt-1.5 text-xs leading-relaxed text-brand-cream/70">
+                      Informe o WhatsApp ou e-mail cadastrado para acessar seus agendamentos.
+                    </p>
+                  </div>
+
+                  {error && (
+                    <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-red-500/40 bg-red-950/40 p-3.5 text-xs text-red-200">
+                      <ShieldAlert className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleLogin(identifier);
+                    }}
+                    className="mt-6 space-y-4"
+                  >
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
+                        Telefone (WhatsApp) ou E-mail
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="(48) 99123-4567 ou seu@email.com"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        className="mt-1.5 w-full rounded-md border border-white/10 bg-brand-black px-4 py-3 text-sm text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                      />
+                    </div>
+
+                    <BrandButton
+                      type="submit"
+                      variant="gold"
+                      size="full"
+                      disabled={loading || !identifier.trim()}
+                      className="mt-2"
+                    >
+                      {loading ? 'Verificando...' : 'Acessar Meu Painel'}
+                    </BrandButton>
+                  </form>
+
+                  <div className="mt-6 text-center border-t border-white/10 pt-4">
+                    <p className="text-xs text-brand-cream/60">
+                      Primeira vez aqui?{' '}
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('register')}
+                        className="font-bold text-brand-gold hover:underline"
+                      >
+                        Cadastre-se agora
+                      </button>
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* MODO 2: NOVO CADASTRO */
+                <div>
+                  <div className="text-center">
+                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-brand-gold/40 bg-brand-black text-brand-gold shadow-gold">
+                      <UserPlus className="h-6 w-6" />
+                    </span>
+                    <h1 className="mt-4 font-display text-xl sm:text-2xl font-bold uppercase tracking-wide text-brand-cream">
+                      Criar Meu Cadastro
+                    </h1>
+                    <p className="mt-1.5 text-xs leading-relaxed text-brand-cream/70">
+                      Cadastre seu nome e telefone para agendar seus horários no Clube da Barba.
+                    </p>
+                  </div>
+
+                  {regError && (
+                    <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-red-500/40 bg-red-950/40 p-3.5 text-xs text-red-200">
+                      <ShieldAlert className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
+                      <span>{regError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleRegister} className="mt-6 space-y-3.5">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
+                        Nome Completo *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ex: Carlos Eduardo"
+                        value={regName}
+                        onChange={(e) => setRegName(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-sm text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
+                        Telefone (WhatsApp) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="(48) 99123-4567"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-sm text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
+                        E-mail (Opcional)
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-sm text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
+                        Plano do Clube
+                      </label>
+                      <select
+                        value={regPlan}
+                        onChange={(e) => setRegPlan(e.target.value as any)}
+                        className="mt-1 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                      >
+                        <option value="corte-barba">Corte + Barba — R$ 159,90/mês</option>
+                        <option value="corte">Plano Cabelo — R$ 99,90/mês</option>
+                        <option value="barba">Plano Barba — R$ 89,90/mês</option>
+                      </select>
+                    </div>
+
+                    <BrandButton
+                      type="submit"
+                      variant="gold"
+                      size="full"
+                      disabled={regLoading || !regName.trim() || !regPhone.trim()}
+                      className="mt-4"
+                    >
+                      {regLoading ? 'Criando cadastro...' : 'Concluir Cadastro & Acessar'}
+                    </BrandButton>
+                  </form>
+
+                  <div className="mt-6 text-center border-t border-white/10 pt-4">
+                    <p className="text-xs text-brand-cream/60">
+                      Já é cadastrado?{' '}
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('login')}
+                        className="font-bold text-brand-gold hover:underline"
+                      >
+                        Fazer login
+                      </button>
+                    </p>
+                  </div>
                 </div>
               )}
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleLogin(identifier);
-                }}
-                className="mt-6 space-y-4"
-              >
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
-                    Telefone (WhatsApp) ou E-mail
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="(48) 99123-4567 ou seu@email.com"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    className="mt-1.5 w-full rounded-md border border-white/10 bg-brand-black px-4 py-3 text-sm text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
-                  />
-                </div>
-
-                <BrandButton
-                  type="submit"
-                  variant="gold"
-                  size="full"
-                  disabled={loading || !identifier.trim()}
-                  className="mt-2"
-                >
-                  {loading ? 'Verificando...' : 'Acessar Meu Painel'}
-                </BrandButton>
-              </form>
-
-              {/* Contas de Demonstração Rápidas para Teste */}
-              <div className="mt-8 border-t border-white/10 pt-6">
-                <span className="block text-center text-[10px] font-bold uppercase tracking-widest text-brand-gold/70">
-                  Acesso rápido de teste (1-clique)
-                </span>
-                <div className="mt-3 grid gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIdentifier('48991234567');
-                      handleLogin('48991234567');
-                    }}
-                    className="rounded border border-white/5 bg-brand-black/60 px-3 py-2 text-left text-xs transition-colors hover:border-brand-gold/50 hover:bg-brand-black"
-                  >
-                    <span className="font-bold text-brand-cream">Carlos Eduardo</span> — Corte + Barba
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIdentifier('48998765432');
-                      handleLogin('48998765432');
-                    }}
-                    className="rounded border border-white/5 bg-brand-black/60 px-3 py-2 text-left text-xs transition-colors hover:border-brand-gold/50 hover:bg-brand-black"
-                  >
-                    <span className="font-bold text-brand-cream">Rodrigo Silveira</span> — Plano Cabelo
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         ) : (
@@ -462,17 +643,39 @@ export default function AssinantePage() {
 
                     {/* 3. OBSERVAÇÕES */}
                     {selectedTimeSlot && (
-                      <div className="border-t border-white/10 pt-6 animate-in fade-in">
-                        <label className="block font-display text-xs font-bold uppercase tracking-wider text-brand-cream">
-                          3. Observação para o barbeiro (opcional):
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Ex: Quero manter a barba mais cheia / Degradê navalhado"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          className="mt-2 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-xs text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none"
-                        />
+                      <div className="border-t border-white/10 pt-6 space-y-4 animate-in fade-in">
+                        {barbers.length > 0 && (
+                          <div>
+                            <label className="block font-display text-xs font-bold uppercase tracking-wider text-brand-cream">
+                              3. Escolha o Barbeiro de Preferência (Opcional):
+                            </label>
+                            <select
+                              value={selectedBarber}
+                              onChange={(e) => setSelectedBarber(e.target.value)}
+                              className="mt-2 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                            >
+                              <option value="Primeiro Barbeiro Disponível">Qualquer Barbeiro Disponível</option>
+                              {barbers.map((b) => (
+                                <option key={b.id} value={b.name}>
+                                  {b.name} — {b.role}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block font-display text-xs font-bold uppercase tracking-wider text-brand-cream">
+                            {barbers.length > 0 ? '4' : '3'}. Observação para o barbeiro (opcional):
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Quero manter a barba mais cheia / Degradê navalhado"
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            className="mt-2 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-xs text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none"
+                          />
+                        </div>
 
                         <BrandButton
                           type="submit"

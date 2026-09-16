@@ -109,6 +109,7 @@ model Barber {
   id           String        @id @default(uuid())
   name         String
   role         String        @default("Barbeiro Profissional")
+  phone        String?
   photoUrl     String?
   bio          String?
   active       Boolean       @default(true)

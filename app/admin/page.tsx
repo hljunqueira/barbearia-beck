@@ -23,10 +23,13 @@ import {
   FileText,
   Sliders,
   Edit,
+  Edit2,
   Save,
   Check,
   AlertCircle,
   ArrowRight,
+  Shield,
+  Scissors,
 } from 'lucide-react';
 import type { Appointment, AppointmentStatus, Product, Subscription, SubscriptionStatus } from '@/types';
 import {
@@ -35,6 +38,8 @@ import {
   listSubscriptions,
   updateAppointmentStatus,
   updateSubscriptionStatus,
+  updateSubscriptionDetails,
+  deleteSubscriptionAction,
 } from '@/app/actions/subscriptionActions';
 import {
   listAdminProducts,
@@ -57,6 +62,9 @@ import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { BrandButton } from '@/components/BrandButton';
 import { BarberAgenda } from '@/components/admin/BarberAgenda';
 import { ImageUploadField } from '@/components/admin/ImageUploadField';
+import { BarbersManager } from '@/components/admin/BarbersManager';
+import { AdminUsersManager } from '@/components/admin/AdminUsersManager';
+import { SafeDeleteModal } from '@/components/admin/SafeDeleteModal';
 import { loginAdminAction } from '@/app/actions/authActions';
 
 export default function AdminPage() {
@@ -69,7 +77,7 @@ export default function AdminPage() {
 
   // Aba ativa
   const [activeTab, setActiveTab] = useState<
-    'subscriptions' | 'appointments' | 'products' | 'home' | 'about'
+    'subscriptions' | 'barbers' | 'admins' | 'appointments' | 'products' | 'home' | 'about'
   >('subscriptions');
 
   // Dados
@@ -92,6 +100,27 @@ export default function AdminPage() {
   const [newEmail, setNewEmail] = useState('');
   const [newPlan, setNewPlan] = useState<'corte' | 'barba' | 'corte-barba'>('corte-barba');
   const [creatingSub, setCreatingSub] = useState(false);
+
+  // Modal Editar Assinante (Cliente)
+  const [isEditSubModalOpen, setIsEditSubModalOpen] = useState(false);
+  const [editingSub, setEditingSub] = useState<Subscription | null>(null);
+  const [editSubName, setEditSubName] = useState('');
+  const [editSubPhone, setEditSubPhone] = useState('');
+  const [editSubEmail, setEditSubEmail] = useState('');
+  const [editSubPlan, setEditSubPlan] = useState<'corte' | 'barba' | 'corte-barba'>('corte-barba');
+  const [editSubStatus, setEditSubStatus] = useState<SubscriptionStatus>('active');
+  const [editSubNextBilling, setEditSubNextBilling] = useState('');
+  const [savingSub, setSavingSub] = useState(false);
+
+  // SafeDeleteModal para Assinante
+  const [isDeleteSubModalOpen, setIsDeleteSubModalOpen] = useState(false);
+  const [subToDelete, setSubToDelete] = useState<Subscription | null>(null);
+  const [isDeletingSub, setIsDeletingSub] = useState(false);
+
+  // SafeDeleteModal para Produto
+  const [isDeleteProdModalOpen, setIsDeleteProdModalOpen] = useState(false);
+  const [prodToDelete, setProdToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeletingProd, setIsDeletingProd] = useState(false);
 
   // Modal / Formulário Produto
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -232,6 +261,110 @@ export default function AdminPage() {
       alert('Erro ao cadastrar assinante');
     } finally {
       setCreatingSub(false);
+    }
+  };
+
+  // --- AÇÕES DE EDIÇÃO E EXCLUSÃO SEGURA DE CLIENTES / ASSINANTES ---
+  const handleOpenEditSub = (sub: Subscription) => {
+    setEditingSub(sub);
+    setEditSubName(sub.customerName);
+    setEditSubPhone(sub.customerPhone);
+    setEditSubEmail(sub.customerEmail);
+    setEditSubPlan(sub.planSlug as any);
+    setEditSubStatus(sub.status);
+    setEditSubNextBilling(sub.nextBillingDate);
+    setIsEditSubModalOpen(true);
+  };
+
+  const handleSaveEditSub = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSub) return;
+    setSavingSub(true);
+
+    try {
+      const res = await updateSubscriptionDetails(editingSub.id, {
+        customerName: editSubName,
+        customerPhone: editSubPhone,
+        customerEmail: editSubEmail,
+        planSlug: editSubPlan,
+        status: editSubStatus,
+        nextBillingDate: editSubNextBilling,
+      });
+
+      if (res.ok) {
+        setSubscriptions((prev) =>
+          prev.map((s) =>
+            s.id === editingSub.id
+              ? {
+                  ...s,
+                  customerName: editSubName,
+                  customerPhone: editSubPhone,
+                  customerEmail: editSubEmail,
+                  planSlug: editSubPlan,
+                  status: editSubStatus,
+                  nextBillingDate: editSubNextBilling,
+                }
+              : s
+          )
+        );
+        setIsEditSubModalOpen(false);
+        notifySuccess(`Dados de "${editSubName}" atualizados com sucesso.`);
+      } else {
+        alert(res.error || 'Erro ao atualizar dados do cliente.');
+      }
+    } catch {
+      alert('Falha ao comunicar com o servidor.');
+    } finally {
+      setSavingSub(false);
+    }
+  };
+
+  const handleOpenDeleteSub = (sub: Subscription) => {
+    setSubToDelete(sub);
+    setIsDeleteSubModalOpen(true);
+  };
+
+  const handleConfirmDeleteSub = async () => {
+    if (!subToDelete) return;
+    setIsDeletingSub(true);
+
+    try {
+      const res = await deleteSubscriptionAction(subToDelete.id);
+      if (res.ok) {
+        setSubscriptions((prev) => prev.filter((s) => s.id !== subToDelete.id));
+        setIsDeleteSubModalOpen(false);
+        notifySuccess(`Assinatura de "${subToDelete.customerName}" excluída com sucesso.`);
+      } else {
+        alert(res.error || 'Erro ao excluir assinatura.');
+      }
+    } catch {
+      alert('Falha ao excluir assinatura no banco de dados.');
+    } finally {
+      setIsDeletingSub(false);
+      setSubToDelete(null);
+    }
+  };
+
+  // --- AÇÕES DE EXCLUSÃO SEGURA DE PRODUTOS ---
+  const handleOpenDeleteProduct = (prod: { id: string; name: string }) => {
+    setProdToDelete(prod);
+    setIsDeleteProdModalOpen(true);
+  };
+
+  const handleConfirmDeleteProduct = async () => {
+    if (!prodToDelete) return;
+    setIsDeletingProd(true);
+
+    try {
+      await deleteProduct(prodToDelete.id);
+      setProducts((prev) => prev.filter((p) => p.id !== prodToDelete.id));
+      setIsDeleteProdModalOpen(false);
+      notifySuccess(`Produto "${prodToDelete.name}" removido com sucesso.`);
+    } catch {
+      alert('Erro ao excluir produto.');
+    } finally {
+      setIsDeletingProd(false);
+      setProdToDelete(null);
     }
   };
 
@@ -519,7 +652,31 @@ export default function AdminPage() {
             }`}
           >
             <Users size={14} />
-            <span>Assinaturas ({subscriptions.length})</span>
+            <span>Clientes & Assinaturas ({subscriptions.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('barbers')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider font-display rounded transition whitespace-nowrap ${
+              activeTab === 'barbers'
+                ? 'bg-brand-gold text-brand-black font-bold'
+                : 'text-brand-cream/70 hover:text-brand-gold hover:bg-white/5'
+            }`}
+          >
+            <Scissors size={14} />
+            <span>Barbeiros</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('admins')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider font-display rounded transition whitespace-nowrap ${
+              activeTab === 'admins'
+                ? 'bg-brand-gold text-brand-black font-bold'
+                : 'text-brand-cream/70 hover:text-brand-gold hover:bg-white/5'
+            }`}
+          >
+            <Shield size={14} />
+            <span>Administradores</span>
           </button>
 
           <button
@@ -695,18 +852,38 @@ export default function AdminPage() {
                         </span>
                       </td>
                       <td className="p-3.5 text-right">
-                        <select
-                          value={sub.status}
-                          onChange={(e) =>
-                            handleStatusChange(sub.id, e.target.value as SubscriptionStatus)
-                          }
-                          className="bg-black/50 border border-white/15 text-brand-cream text-[11px] rounded px-2 py-1 focus:border-brand-gold focus:outline-none"
-                        >
-                          <option value="active">Ativar</option>
-                          <option value="pending">Pendente</option>
-                          <option value="past_due">Atrasado</option>
-                          <option value="canceled">Cancelar</option>
-                        </select>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditSub(sub)}
+                            className="p-1.5 rounded border border-white/10 hover:border-brand-gold/60 text-brand-cream/80 hover:text-brand-gold transition"
+                            title="Editar Dados do Cliente"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+
+                          <select
+                            value={sub.status}
+                            onChange={(e) =>
+                              handleStatusChange(sub.id, e.target.value as SubscriptionStatus)
+                            }
+                            className="bg-black/50 border border-white/15 text-brand-cream text-[11px] rounded px-2 py-1 focus:border-brand-gold focus:outline-none"
+                          >
+                            <option value="active">Ativo</option>
+                            <option value="pending">Pendente</option>
+                            <option value="past_due">Atrasado</option>
+                            <option value="canceled">Cancelado</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDeleteSub(sub)}
+                            className="p-1.5 rounded border border-red-500/20 text-red-400 hover:bg-red-950/40 hover:border-red-500/50 transition"
+                            title="Excluir Assinatura"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -720,6 +897,24 @@ export default function AdminPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* ABA: EQUIPE DE BARBEIROS                                 */}
+        {/* ======================================================== */}
+        {activeTab === 'barbers' && (
+          <div>
+            <BarbersManager />
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* ABA: USUÁRIOS ADMINISTRADORES                            */}
+        {/* ======================================================== */}
+        {activeTab === 'admins' && (
+          <div>
+            <AdminUsersManager currentUsername={currentUser} />
           </div>
         )}
 
@@ -824,7 +1019,7 @@ export default function AdminPage() {
                         <Edit size={14} />
                       </button>
                       <button
-                        onClick={() => handleDeleteProduct(prod.id, prod.name)}
+                        onClick={() => handleOpenDeleteProduct(prod)}
                         className="p-1.5 rounded border border-red-500/20 text-red-400 hover:bg-red-950/40 transition"
                         title="Excluir Produto"
                       >
@@ -1416,6 +1611,142 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* MODAL EDITAR ASSINANTE (CLIENTE)                         */}
+      {/* ======================================================== */}
+      {isEditSubModalOpen && editingSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm overflow-y-auto py-8">
+          <div className="w-full max-w-lg rounded border border-white/15 bg-brand-graphite p-6 shadow-2xl space-y-4 my-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="font-display text-sm font-bold uppercase tracking-wider text-brand-cream">
+                Editar Dados do Assinante
+              </h3>
+              <button
+                onClick={() => setIsEditSubModalOpen(false)}
+                className="text-white/40 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditSub} className="space-y-4">
+              <div>
+                <label className="block text-xs text-brand-cream/80 mb-1">Nome Completo *</label>
+                <input
+                  type="text"
+                  required
+                  value={editSubName}
+                  onChange={(e) => setEditSubName(e.target.value)}
+                  className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-brand-cream/80 mb-1">Telefone (WhatsApp) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editSubPhone}
+                    onChange={(e) => setEditSubPhone(e.target.value)}
+                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-brand-cream/80 mb-1">E-mail</label>
+                  <input
+                    type="email"
+                    value={editSubEmail}
+                    onChange={(e) => setEditSubEmail(e.target.value)}
+                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-brand-cream/80 mb-1">Plano do Clube</label>
+                  <select
+                    value={editSubPlan}
+                    onChange={(e) => setEditSubPlan(e.target.value as any)}
+                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                  >
+                    <option value="corte-barba">Corte + Barba (R$ 159,90)</option>
+                    <option value="corte">Cabelo (R$ 99,90)</option>
+                    <option value="barba">Barba (R$ 89,90)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-brand-cream/80 mb-1">Status da Assinatura</label>
+                  <select
+                    value={editSubStatus}
+                    onChange={(e) => setEditSubStatus(e.target.value as any)}
+                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                  >
+                    <option value="active">Ativo</option>
+                    <option value="pending">Pendente</option>
+                    <option value="past_due">Atrasado</option>
+                    <option value="canceled">Cancelado</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-brand-cream/80 mb-1">Data de Renovação / Próx. Cobrança</label>
+                <input
+                  type="date"
+                  value={editSubNextBilling}
+                  onChange={(e) => setEditSubNextBilling(e.target.value)}
+                  className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2 justify-end border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsEditSubModalOpen(false)}
+                  disabled={savingSub}
+                  className="px-3 py-2 text-xs text-white/60 hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <BrandButton type="submit" size="sm" disabled={savingSub}>
+                  {savingSub ? 'Salvando...' : 'Salvar Alterações'}
+                </BrandButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EXCLUSÃO SEGURO: ASSINANTE / CLIENTE */}
+      <SafeDeleteModal
+        isOpen={isDeleteSubModalOpen}
+        title="Excluir Assinatura de Cliente"
+        itemName={subToDelete ? `${subToDelete.customerName} (${subToDelete.customerPhone})` : ''}
+        itemType="assinante / cliente"
+        description="Esta ação removerá permanentemente o cadastro do assinante no Supabase PostgreSQL. Agendamentos associados perderão o vínculo com o cliente."
+        confirmText="Confirmar Exclusão"
+        isDeleting={isDeletingSub}
+        onConfirm={handleConfirmDeleteSub}
+        onClose={() => setIsDeleteSubModalOpen(false)}
+      />
+
+      {/* MODAL DE EXCLUSÃO SEGURO: PRODUTO */}
+      <SafeDeleteModal
+        isOpen={isDeleteProdModalOpen}
+        title="Excluir Produto do Catálogo"
+        itemName={prodToDelete?.name || ''}
+        itemType="produto"
+        description="O produto será removido permanentemente da base de dados e não será mais exibido na vitrine do site."
+        confirmText="Confirmar Exclusão"
+        isDeleting={isDeletingProd}
+        onConfirm={handleConfirmDeleteProduct}
+        onClose={() => setIsDeleteProdModalOpen(false)}
+      />
     </div>
   );
 }

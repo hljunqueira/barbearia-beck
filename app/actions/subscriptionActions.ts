@@ -124,6 +124,146 @@ export async function createSubscription(data: {
 }
 
 /**
+ * Cadastro direto pelo Portal do Assinante (/assinante).
+ * Exige Nome e Telefone obrigatórios e faz o auto-login.
+ */
+export async function registerCustomerSubscriptionAction(data: {
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  planSlug?: 'corte' | 'barba' | 'corte-barba';
+}): Promise<{ ok: boolean; subscription?: Subscription; error?: string }> {
+  try {
+    const rawName = (data.customerName || '').trim();
+    const rawPhone = normalizePhone(data.customerPhone || '');
+
+    if (!rawName || rawName.length < 3) {
+      return { ok: false, error: 'Por favor, informe seu nome completo (mínimo 3 caracteres).' };
+    }
+
+    if (!rawPhone || rawPhone.length < 10) {
+      return { ok: false, error: 'Por favor, informe um telefone/WhatsApp válido com DDD.' };
+    }
+
+    const planSlug = data.planSlug || 'corte-barba';
+    const planNames: Record<string, { name: string; price: number }> = {
+      'corte': { name: 'Plano Cabelo', price: 9990 },
+      'barba': { name: 'Plano Barba', price: 8990 },
+      'corte-barba': { name: 'Corte + Barba', price: 15990 },
+    };
+    const planInfo = planNames[planSlug] || planNames['corte-barba'];
+
+    const email = data.customerEmail?.trim().toLowerCase() || `${rawPhone}@cliente.beckbarbearia.com.br`;
+
+    // Verifica se já existe cliente com esse telefone
+    const existing = await prisma.subscription.findFirst({
+      where: { customerPhone: { contains: rawPhone } },
+    });
+
+    if (existing) {
+      // Retorna a assinatura já existente
+      return {
+        ok: true,
+        subscription: {
+          id: existing.id,
+          customerName: existing.customerName,
+          customerPhone: existing.customerPhone,
+          customerEmail: existing.customerEmail,
+          planSlug: existing.planSlug as any,
+          planName: existing.planName,
+          priceInCents: existing.priceInCents,
+          status: existing.status as SubscriptionStatus,
+          startDate: existing.startDate,
+          nextBillingDate: existing.nextBillingDate,
+        },
+      };
+    }
+
+    const sub = await createSubscription({
+      customerName: rawName,
+      customerPhone: rawPhone,
+      customerEmail: email,
+      planSlug,
+      planName: planInfo.name,
+      priceInCents: planInfo.price,
+      status: 'active',
+    });
+
+    return { ok: true, subscription: sub };
+  } catch (error: any) {
+    console.error('Erro no cadastro do assinante:', error);
+    return { ok: false, error: error?.message || 'Falha ao registrar cadastro. Tente novamente.' };
+  }
+}
+
+/**
+ * Atualiza todos os dados cadastrais de uma assinatura (Admin).
+ */
+export async function updateSubscriptionDetails(
+  id: string,
+  data: {
+    customerName?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    planSlug?: 'corte' | 'barba' | 'corte-barba';
+    status?: SubscriptionStatus;
+    nextBillingDate?: string;
+  }
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const updateData: any = {};
+    if (data.customerName?.trim()) updateData.customerName = data.customerName.trim();
+    if (data.customerPhone?.trim()) updateData.customerPhone = normalizePhone(data.customerPhone);
+    if (data.customerEmail?.trim()) updateData.customerEmail = data.customerEmail.trim().toLowerCase();
+    if (data.status) updateData.status = data.status;
+    if (data.nextBillingDate) updateData.nextBillingDate = data.nextBillingDate;
+
+    if (data.planSlug) {
+      updateData.planSlug = data.planSlug;
+      const planNames: Record<string, { name: string; price: number }> = {
+        'corte': { name: 'Cabelo', price: 9990 },
+        'barba': { name: 'Barba', price: 8990 },
+        'corte-barba': { name: 'Corte + Barba', price: 15990 },
+      };
+      if (planNames[data.planSlug]) {
+        updateData.planName = planNames[data.planSlug].name;
+        updateData.priceInCents = planNames[data.planSlug].price;
+      }
+    }
+
+    await prisma.subscription.update({
+      where: { id },
+      data: updateData,
+    });
+
+    revalidatePath('/admin');
+    revalidatePath('/assinante');
+    return { ok: true };
+  } catch (error: any) {
+    console.error('Erro ao atualizar assinatura:', error);
+    return { ok: false, error: 'Falha ao atualizar dados do cliente.' };
+  }
+}
+
+/**
+ * Exclui uma assinatura do banco de dados com segurança.
+ */
+export async function deleteSubscriptionAction(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await prisma.subscription.delete({
+      where: { id },
+    });
+
+    revalidatePath('/admin');
+    revalidatePath('/assinante');
+    return { ok: true };
+  } catch (error: any) {
+    console.error('Erro ao excluir assinatura:', error);
+    return { ok: false, error: 'Falha ao excluir assinatura do cliente.' };
+  }
+}
+
+/**
  * Atualiza o status de uma assinatura no PostgreSQL.
  */
 export async function updateSubscriptionStatus(
@@ -143,6 +283,7 @@ export async function updateSubscriptionStatus(
     return { ok: false, error: 'Assinatura não encontrada' };
   }
 }
+
 
 /**
  * Lista todos os agendamentos reais (Admin ou filtrado por assinatura).
@@ -188,6 +329,8 @@ export async function bookAppointment(data: {
   date: string; // YYYY-MM-DD
   timeSlot: string; // HH:mm
   notes?: string;
+  barberName?: string;
+  barberId?: string;
 }): Promise<{ ok: boolean; appointment?: Appointment; error?: string }> {
   try {
     // Validar assinatura no banco
@@ -249,7 +392,8 @@ export async function bookAppointment(data: {
         customerPhone: normalizePhone(data.customerPhone),
         planName: data.planName,
         serviceType: data.serviceType,
-        barberName: 'Henrique Becker',
+        barberName: data.barberName?.trim() || 'Barbeiro da Equipe',
+        barberId: data.barberId || null,
         date: data.date,
         timeSlot: data.timeSlot,
         status: 'confirmed',
@@ -292,7 +436,8 @@ export async function createAdminAppointment(data: {
   customerName: string;
   customerPhone: string;
   serviceType: string;
-  barberName: string;
+  barberName?: string;
+  barberId?: string;
   date: string; // YYYY-MM-DD
   timeSlot: string; // HH:mm
   subscriptionId?: string | null;
@@ -310,7 +455,8 @@ export async function createAdminAppointment(data: {
         customerPhone: normalizePhone(data.customerPhone),
         planName: data.planName ?? 'Avulso',
         serviceType: data.serviceType,
-        barberName: data.barberName || 'Henrique Becker',
+        barberName: data.barberName?.trim() || 'Barbeiro da Equipe',
+        barberId: data.barberId || null,
         priceInCents: data.priceInCents ?? 3500,
         durationMinutes: data.durationMinutes ?? 30,
         date: data.date,

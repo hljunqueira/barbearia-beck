@@ -115,3 +115,23 @@ export interface Appointment {
   readonly notes?: string;
   readonly createdAt: string;
 }
+
+export interface Barber {
+  readonly id: string;
+  readonly name: string;
+  readonly role: string;
+  readonly phone?: string | null;
+  readonly photoUrl?: string | null;
+  readonly bio?: string | null;
+  readonly active: boolean;
+  readonly createdAt: string;
+}
+
+export interface AdminUserItem {
+  readonly id: string;
+  readonly username: string;
+  readonly name: string;
+  readonly role: string;
+  readonly createdAt: string;
+}
+
