@@ -561,6 +561,16 @@ export async function createAdminAppointment(data: {
   status?: AppointmentStatus;
 }): Promise<{ ok: boolean; appointment?: Appointment; error?: string }> {
   try {
+    // Validar se o dia é Segunda (1), Terça (2) ou Quarta (3)
+    const [year, month, day] = data.date.split('-').map(Number);
+    const targetDate = new Date(year, month - 1, day, 12, 0, 0);
+    if (!isAllowedClubDay(targetDate)) {
+      return {
+        ok: false,
+        error: 'Agendamentos são permitidos exclusivamente de Segunda a Quarta-feira.',
+      };
+    }
+
     const newApt = await prisma.appointment.create({
       data: {
         subscriptionId: data.subscriptionId ?? null,
@@ -613,6 +623,17 @@ export async function updateAppointmentDetails(
   data: Partial<Omit<Appointment, 'id' | 'createdAt'>>,
 ): Promise<{ ok: boolean; appointment?: Appointment; error?: string }> {
   try {
+    if (data.date) {
+      const [year, month, day] = data.date.split('-').map(Number);
+      const targetDate = new Date(year, month - 1, day, 12, 0, 0);
+      if (!isAllowedClubDay(targetDate)) {
+        return {
+          ok: false,
+          error: 'Agendamentos são permitidos exclusivamente de Segunda a Quarta-feira.',
+        };
+      }
+    }
+
     const updated = await prisma.appointment.update({
       where: { id },
       data: {

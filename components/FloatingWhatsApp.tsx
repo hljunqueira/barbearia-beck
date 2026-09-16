@@ -1,10 +1,17 @@
 'use client';
 
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
-import { whatsappLink } from '@/lib/site';
+import { SITE, whatsappLink } from '@/lib/site';
 
-export const FloatingWhatsApp = () => {
-  const href = whatsappLink('Olá! Gostaria de tirar uma dúvida sobre o atendimento na Beck Barbearia.');
+interface FloatingWhatsAppProps {
+  whatsappNumber?: string;
+}
+
+export const FloatingWhatsApp = ({ whatsappNumber }: FloatingWhatsAppProps) => {
+  const phone = whatsappNumber ? whatsappNumber.replace(/\D/g, '') : SITE.whatsappNumber;
+  const href = `https://wa.me/${phone}?text=${encodeURIComponent(
+    'Olá! Gostaria de tirar uma dúvida sobre o atendimento na Beck Barbearia.',
+  )}`;
 
   return (
     <aside aria-label="Atendimento rápido WhatsApp" className="fixed bottom-6 right-6 z-40">

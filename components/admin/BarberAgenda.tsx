@@ -38,6 +38,7 @@ import {
 import { formatBRL } from '@/lib/format';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { AgendaConfigModal } from '@/components/admin/AgendaConfigModal';
+import { isAllowedClubDay, getTimeSlotsForDay } from '@/lib/data/subscriptions';
 
 interface BarberAgendaProps {
   initialAppointments: Appointment[];
@@ -82,6 +83,16 @@ const getMondayOfWeek = (d: Date): Date => {
   return date;
 };
 
+// Retorna uma data de atendimento válida (Segunda a Quarta-feira)
+const getInitialClubDate = (): string => {
+  const today = new Date();
+  const day = today.getDay();
+  if (day >= 1 && day <= 3) {
+    return formatLocalDate(today);
+  }
+  return formatLocalDate(getMondayOfWeek(today));
+};
+
 export const BarberAgenda = ({
   initialAppointments,
   subscriptions,
@@ -92,10 +103,14 @@ export const BarberAgenda = ({
   const [barbersList, setBarbersList] = useState<Barber[]>(externalBarbers || []);
   const [agendaSettings, setAgendaSettings] = useState<AgendaSettings | null>(null);
 
-  // Navegação Temporal Real (Segunda a Sábado da semana atual)
+  // Modo de Período: Semanal ou Mensal
+  const [periodMode, setPeriodMode] = useState<'weekly' | 'monthly'>('weekly');
+  const [currentMonthDate, setCurrentMonthDate] = useState<Date>(() => new Date());
+
+  // Navegação Temporal Real (Segunda a Quarta-feira)
   const [currentWeekMonday, setCurrentWeekMonday] = useState<Date>(() => getMondayOfWeek(new Date()));
   const todayStr = useMemo(() => formatLocalDate(new Date()), []);
-  const [selectedDate, setSelectedDate] = useState<string>(() => todayStr);
+  const [selectedDate, setSelectedDate] = useState<string>(() => getInitialClubDate());
 
   const [viewMode, setViewMode] = useState<'grid' | 'timeline' | 'list'>('grid');
   const [selectedBarber, setSelectedBarber] = useState<string>('all');
@@ -152,13 +167,13 @@ export const BarberAgenda = ({
     loadData();
   }, [externalBarbers]);
 
-  // Gerar dias da semana atual
+  // Gerar dias da semana atual (Exclusivamente Segunda a Quarta-feira)
   const weekDays = useMemo(() => {
     const days = [];
-    const labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const fullLabels = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+    const labels = ['Seg', 'Ter', 'Qua'];
+    const fullLabels = ['Segunda-feira', 'Terça-feira', 'Quarta-feira'];
 
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 3; i++) {
       const d = new Date(currentWeekMonday);
       d.setDate(currentWeekMonday.getDate() + i);
       const dateStr = formatLocalDate(d);
@@ -201,8 +216,120 @@ export const BarberAgenda = ({
   const handleCurrentWeek = () => {
     const mon = getMondayOfWeek(new Date());
     setCurrentWeekMonday(mon);
-    setSelectedDate(todayStr);
+    setSelectedDate(getInitialClubDate());
   };
+
+  // Navegar Meses
+  const handlePrevMonth = () => {
+    setCurrentMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const handleCurrentMonth = () => {
+    setCurrentMonthDate(new Date());
+  };
+
+  const currentMonthLabel = useMemo(() => {
+    const str = currentMonthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }, [currentMonthDate]);
+
+  const currentWeekLabel = useMemo(() => {
+    const endDay = new Date(currentWeekMonday);
+    endDay.setDate(currentWeekMonday.getDate() + 2); // Quarta-feira
+    const startStr = `${String(currentWeekMonday.getDate()).padStart(2, '0')}/${String(currentWeekMonday.getMonth() + 1).padStart(2, '0')}`;
+    const endStr = `${String(endDay.getDate()).padStart(2, '0')}/${String(endDay.getMonth() + 1).padStart(2, '0')}`;
+    return `${startStr} a ${endStr}`;
+  }, [currentWeekMonday]);
+
+  // Semanas do Mês Selecionado (Exclusivamente colunas de Segunda a Quarta-feira)
+  const monthWeeks = useMemo(() => {
+    const year = currentMonthDate.getFullYear();
+    const month = currentMonthDate.getMonth();
+
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+
+    let cursorMonday = getMondayOfWeek(firstDayOfMonth);
+    const weeks = [];
+    let weekCounter = 1;
+
+    while (
+      cursorMonday <= lastDayOfMonth ||
+      (cursorMonday.getMonth() === month && cursorMonday.getFullYear() === year)
+    ) {
+      const dayLabels = ['Seg', 'Ter', 'Qua'];
+      const fullLabels = ['Segunda-feira', 'Terça-feira', 'Quarta-feira'];
+      const days = [];
+
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(cursorMonday);
+        d.setDate(cursorMonday.getDate() + i);
+        const dateStr = formatLocalDate(d);
+
+        const dayApts = appointments.filter((a) => {
+          if (a.date !== dateStr) return false;
+          if (selectedBarber !== 'all' && a.barberName !== selectedBarber) return false;
+          if (selectedStatus !== 'all' && a.status !== selectedStatus) return false;
+          if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            const matchName = a.customerName.toLowerCase().includes(q);
+            const matchPhone = a.customerPhone.includes(q);
+            const matchService = a.serviceType.toLowerCase().includes(q);
+            if (!matchName && !matchPhone && !matchService) return false;
+          }
+          return true;
+        });
+
+        const stats = {
+          total: dayApts.length,
+          confirmed: dayApts.filter((a) => a.status === 'confirmed').length,
+          inProgress: dayApts.filter((a) => a.status === 'in_progress').length,
+          completed: dayApts.filter((a) => a.status === 'completed').length,
+          canceled: dayApts.filter((a) => a.status === 'canceled').length,
+        };
+
+        days.push({
+          date: dateStr,
+          label: dayLabels[i],
+          fullLabel: fullLabels[i],
+          dayNum: String(d.getDate()).padStart(2, '0'),
+          monthShort: d.toLocaleDateString('pt-BR', { month: 'short' }),
+          isCurrentMonth: d.getMonth() === month,
+          isToday: dateStr === todayStr,
+          isSelected: dateStr === selectedDate,
+          appointments: dayApts,
+          stats,
+        });
+      }
+
+      weeks.push({
+        weekNumber: weekCounter++,
+        days,
+      });
+
+      const nextMonday = new Date(cursorMonday);
+      nextMonday.setDate(cursorMonday.getDate() + 7);
+      cursorMonday = nextMonday;
+
+      if (cursorMonday > lastDayOfMonth && cursorMonday.getMonth() !== month) {
+        break;
+      }
+    }
+
+    return weeks;
+  }, [currentMonthDate, appointments, selectedBarber, selectedStatus, searchQuery, todayStr, selectedDate]);
+
+  // Slots dinâmicos para a data atualmente selecionada
+  const activeDaySlots = useMemo(() => {
+    if (!selectedDate) return TIME_SLOTS;
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dt = new Date(y, m - 1, d, 12, 0, 0);
+    return getTimeSlotsForDay(dt);
+  }, [selectedDate]);
 
   // Filtragem dos Agendamentos
   const filteredAppointments = useMemo(() => {
@@ -254,6 +381,23 @@ export const BarberAgenda = ({
     }
   };
 
+  // Validação da data no modal (Segunda a Quarta-feira)
+  const isAppointmentDateValid = useMemo(() => {
+    if (!appointmentDate) return false;
+    const [y, m, d] = appointmentDate.split('-').map(Number);
+    const targetDate = new Date(y, m - 1, d, 12, 0, 0);
+    return isAllowedClubDay(targetDate);
+  }, [appointmentDate]);
+
+  // Slots dinâmicos para a data selecionada no modal
+  const modalSlots = useMemo(() => {
+    if (!appointmentDate) return TIME_SLOTS;
+    const [y, m, d] = appointmentDate.split('-').map(Number);
+    const targetDate = new Date(y, m - 1, d, 12, 0, 0);
+    const slots = getTimeSlotsForDay(targetDate);
+    return slots.length > 0 ? slots : TIME_SLOTS;
+  }, [appointmentDate]);
+
   // Abrir Modal de Novo Agendamento
   const handleOpenNew = () => {
     setIsEditing(false);
@@ -273,8 +417,16 @@ export const BarberAgenda = ({
     }
     setServiceType(SERVICES_CATALOG[0].name);
     setBarberName(barbersList[0]?.name || 'Matheus Becker');
-    setAppointmentDate(selectedDate);
-    setTimeSlot('15:00');
+
+    const validInitialDate = isAllowedClubDay(new Date(selectedDate + 'T12:00:00'))
+      ? selectedDate
+      : getInitialClubDate();
+    setAppointmentDate(validInitialDate);
+
+    const [y, m, d] = validInitialDate.split('-').map(Number);
+    const slots = getTimeSlotsForDay(new Date(y, m - 1, d, 12, 0, 0));
+    setTimeSlot(slots[0] || '14:00');
+
     setDurationMinutes(35);
     setNotes('');
     setStatus('confirmed');
@@ -301,6 +453,12 @@ export const BarberAgenda = ({
   // Salvar Agendamento
   const handleSaveAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!isAppointmentDateValid) {
+      showToast('Data inválida. Agendamentos são exclusivos de Segunda a Quarta-feira.');
+      return;
+    }
+
     setSubmitting(true);
 
     if (isEditing && editingId) {
@@ -391,103 +549,173 @@ export const BarberAgenda = ({
       )}
 
       {/* ========================================================= */}
-      {/* CABEÇALHO UNIFICADO COM NAVEGAÇÃO TEMPORAL REAL           */}
+      {/* CABEÇALHO UNIFICADO COM NAVEGAÇÃO TEMPORAL REAL (SEMANAL / MENSAL) */}
       {/* ========================================================= */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-lg font-bold uppercase tracking-wider text-brand-cream">
-              Agenda & Grade de Atendimentos
-            </h2>
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="font-display text-lg font-bold uppercase tracking-wider text-brand-cream">
+                Agenda & Grade de Atendimentos
+              </h2>
+              <button
+                onClick={() => setIsConfigModalOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded bg-black/60 border border-white/10 hover:border-brand-gold/40 text-[11px] font-mono text-brand-cream/70 hover:text-brand-gold transition"
+                title="Configurar horários de abertura e regras da agenda"
+              >
+                <Sliders size={12} />
+                <span>Regras da Agenda</span>
+              </button>
+            </div>
+            <p className="text-xs text-brand-cream/50 mt-0.5">
+              Clube da Barba & Atendimentos — Exclusivo de Segunda a Quarta-feira
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Alternador de Período: Semanal vs Mensal */}
+            <div className="flex bg-black/80 border border-white/10 rounded p-0.5">
+              <button
+                onClick={() => setPeriodMode('weekly')}
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded uppercase transition ${
+                  periodMode === 'weekly'
+                    ? 'bg-brand-gold text-brand-black font-bold shadow-sm'
+                    : 'text-brand-cream/60 hover:text-brand-cream'
+                }`}
+              >
+                <Calendar size={13} />
+                <span>Semanal</span>
+              </button>
+              <button
+                onClick={() => setPeriodMode('monthly')}
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded uppercase transition ${
+                  periodMode === 'monthly'
+                    ? 'bg-brand-gold text-brand-black font-bold shadow-sm'
+                    : 'text-brand-cream/60 hover:text-brand-cream'
+                }`}
+              >
+                <CalendarDays size={13} />
+                <span>Mensal</span>
+              </button>
+            </div>
+
+            {/* Navegação de Tempo (Semana ou Mês) */}
+            {periodMode === 'weekly' ? (
+              <div className="flex items-center bg-black/60 border border-white/10 rounded p-0.5">
+                <button
+                  onClick={handlePrevWeek}
+                  className="p-1.5 hover:bg-white/5 rounded text-brand-cream/60 hover:text-brand-cream transition"
+                  title="Semana Anterior"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <button
+                  onClick={handleCurrentWeek}
+                  className="px-2.5 py-1 text-[11px] font-mono text-brand-cream hover:text-brand-gold uppercase transition"
+                >
+                  Semana Atual
+                </button>
+                <button
+                  onClick={handleNextWeek}
+                  className="p-1.5 hover:bg-white/5 rounded text-brand-cream/60 hover:text-brand-cream transition"
+                  title="Próxima Semana"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center bg-black/60 border border-white/10 rounded p-0.5">
+                <button
+                  onClick={handlePrevMonth}
+                  className="p-1.5 hover:bg-white/5 rounded text-brand-cream/60 hover:text-brand-cream transition"
+                  title="Mês Anterior"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <button
+                  onClick={handleCurrentMonth}
+                  className="px-2.5 py-1 text-[11px] font-mono text-brand-cream hover:text-brand-gold uppercase transition"
+                >
+                  Mês Atual
+                </button>
+                <button
+                  onClick={handleNextMonth}
+                  className="p-1.5 hover:bg-white/5 rounded text-brand-cream/60 hover:text-brand-cream transition"
+                  title="Próximo Mês"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
+
+            {/* Seletor de Modo de Visualização do Dia (visível no modo semanal) */}
+            {periodMode === 'weekly' && (
+              <div className="flex bg-black/60 border border-white/10 rounded p-0.5">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`px-3 py-1 text-xs font-mono rounded uppercase transition ${
+                    viewMode === 'grid'
+                      ? 'bg-brand-gold text-brand-black font-bold'
+                      : 'text-brand-cream/60 hover:text-brand-cream'
+                  }`}
+                >
+                  Grade
+                </button>
+                <button
+                  onClick={() => setViewMode('timeline')}
+                  className={`px-3 py-1 text-xs font-mono rounded uppercase transition ${
+                    viewMode === 'timeline'
+                      ? 'bg-brand-gold text-brand-black font-bold'
+                      : 'text-brand-cream/60 hover:text-brand-cream'
+                  }`}
+                >
+                  Cadeiras
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-1 text-xs font-mono rounded uppercase transition ${
+                    viewMode === 'list'
+                      ? 'bg-brand-gold text-brand-black font-bold'
+                      : 'text-brand-cream/60 hover:text-brand-cream'
+                  }`}
+                >
+                  Lista
+                </button>
+              </div>
+            )}
+
+            {/* Botão Novo Agendamento */}
             <button
-              onClick={() => setIsConfigModalOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-black/60 border border-white/10 hover:border-brand-gold/40 text-[11px] font-mono text-brand-cream/70 hover:text-brand-gold transition"
-              title="Configurar horários de abertura e regras da agenda"
+              onClick={handleOpenNew}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-gold text-brand-black text-xs font-bold uppercase tracking-wider font-display rounded hover:bg-brand-gold-light transition"
             >
-              <Sliders size={12} />
-              <span>Regras da Agenda</span>
+              <Plus size={14} />
+              <span>Novo Agendamento</span>
             </button>
           </div>
-          <p className="text-xs text-brand-cream/50 mt-0.5">
-            Gestão unificada de horários por cadeira, atendimentos de assinantes e clientes avulsos
-          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Navegação de Semanas */}
-          <div className="flex items-center bg-black/60 border border-white/10 rounded p-0.5">
-            <button
-              onClick={handlePrevWeek}
-              className="p-1.5 hover:bg-white/5 rounded text-brand-cream/60 hover:text-brand-cream transition"
-              title="Semana Anterior"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <button
-              onClick={handleCurrentWeek}
-              className="px-2.5 py-1 text-[11px] font-mono text-brand-cream hover:text-brand-gold uppercase transition"
-            >
-              Semana Atual
-            </button>
-            <button
-              onClick={handleNextWeek}
-              className="p-1.5 hover:bg-white/5 rounded text-brand-cream/60 hover:text-brand-cream transition"
-              title="Próxima Semana"
-            >
-              <ChevronRight size={14} />
-            </button>
+        {/* Indicador do Período Ativo */}
+        <div className="flex items-center justify-between text-xs font-mono text-brand-cream/60 bg-black/40 px-3 py-1.5 rounded border border-white/5">
+          <div className="flex items-center gap-2">
+            <span className="text-brand-gold font-bold uppercase">
+              {periodMode === 'weekly' ? 'Semana Ativa:' : 'Mês Ativo:'}
+            </span>
+            <span className="text-brand-cream font-medium">
+              {periodMode === 'weekly' ? currentWeekLabel : currentMonthLabel}
+            </span>
           </div>
-
-          {/* Seletor de Modo de Visualização */}
-          <div className="flex bg-black/60 border border-white/10 rounded p-0.5">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`px-3 py-1 text-xs font-mono rounded uppercase transition ${
-                viewMode === 'grid'
-                  ? 'bg-brand-gold text-brand-black font-bold'
-                  : 'text-brand-cream/60 hover:text-brand-cream'
-              }`}
-            >
-              Grade
-            </button>
-            <button
-              onClick={() => setViewMode('timeline')}
-              className={`px-3 py-1 text-xs font-mono rounded uppercase transition ${
-                viewMode === 'timeline'
-                  ? 'bg-brand-gold text-brand-black font-bold'
-                  : 'text-brand-cream/60 hover:text-brand-cream'
-              }`}
-            >
-              Cadeiras
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-1 text-xs font-mono rounded uppercase transition ${
-                viewMode === 'list'
-                  ? 'bg-brand-gold text-brand-black font-bold'
-                  : 'text-brand-cream/60 hover:text-brand-cream'
-              }`}
-            >
-              Lista
-            </button>
-          </div>
-
-          {/* Botão Novo Agendamento */}
-          <button
-            onClick={handleOpenNew}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-gold text-brand-black text-xs font-bold uppercase tracking-wider font-display rounded hover:bg-brand-gold-light transition"
-          >
-            <Plus size={14} />
-            <span>Novo Agendamento</span>
-          </button>
+          <span className="text-[11px] text-brand-cream/40 hidden sm:inline">
+            Atendimento exclusivo: Segunda (14h-18h30), Terça e Quarta (08h-18h30)
+          </span>
         </div>
       </div>
 
       {/* ========================================================= */}
-      {/* SELETOR DE DIAS DA SEMANA (Navegação Real)                */}
+      {/* MODO SEMANAL: SELETOR DE 3 DIAS (SEGUNDA A QUARTA-FEIRA)  */}
       {/* ========================================================= */}
-      {viewMode !== 'list' && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      {periodMode === 'weekly' && viewMode !== 'list' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {weekDays.map((d) => {
             const isSelected = selectedDate === d.date;
             const count = appointments.filter((a) => a.date === d.date).length;
@@ -495,26 +723,26 @@ export const BarberAgenda = ({
               <button
                 key={d.date}
                 onClick={() => setSelectedDate(d.date)}
-                className={`p-3 rounded border text-left transition flex flex-col justify-between ${
+                className={`p-3.5 rounded border text-left transition flex flex-col justify-between ${
                   isSelected
                     ? 'border-brand-gold bg-brand-gold/15 text-brand-cream shadow-md'
                     : 'border-white/10 bg-[#141414] text-brand-cream/70 hover:border-white/20'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] uppercase tracking-wider text-brand-gold font-bold">
-                    {d.label} {d.dayNum}
+                  <span className="font-mono text-xs uppercase tracking-wider text-brand-gold font-bold">
+                    {d.label} • {d.dayNum}
                   </span>
                   {d.isToday && (
-                    <span className="text-[9px] font-mono uppercase bg-emerald-950 text-emerald-400 border border-emerald-500/30 px-1 rounded">
+                    <span className="text-[9px] font-mono uppercase bg-emerald-950 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">
                       Hoje
                     </span>
                   )}
                 </div>
-                <div className="mt-2 flex items-baseline justify-between">
-                  <span className="text-xs text-brand-cream/80 truncate">{d.fullLabel}</span>
-                  <span className="text-[10px] font-mono text-brand-cream/50 bg-black/40 px-1.5 py-0.5 rounded">
-                    {count}
+                <div className="mt-3 flex items-baseline justify-between">
+                  <span className="text-xs text-brand-cream/90 font-medium">{d.fullLabel}</span>
+                  <span className="text-[11px] font-mono text-brand-cream/60 bg-black/50 px-2 py-0.5 rounded border border-white/5">
+                    {count} agendamento(s)
                   </span>
                 </div>
               </button>
@@ -571,9 +799,178 @@ export const BarberAgenda = ({
       </div>
 
       {/* ========================================================= */}
-      {/* MÉTRICAS RÁPIDAS DO DIA SELECIONADO                       */}
+      {/* VISÃO MENSAL: CALENDÁRIO COM 3 COLUNAS (SEG, TER, QUA)     */}
       {/* ========================================================= */}
-      {viewMode !== 'list' && (
+      {periodMode === 'monthly' && (
+        <div className="space-y-4">
+          {/* Cabeçalho das 3 Colunas de Atendimento */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-3 bg-black/80 rounded border border-white/10 text-center">
+              <span className="font-mono text-xs uppercase font-bold text-brand-gold block">
+                Segunda-feira
+              </span>
+              <span className="text-[11px] text-brand-cream/40 font-mono">14:00 às 18:30</span>
+            </div>
+            <div className="p-3 bg-black/80 rounded border border-white/10 text-center">
+              <span className="font-mono text-xs uppercase font-bold text-brand-gold block">
+                Terça-feira
+              </span>
+              <span className="text-[11px] text-brand-cream/40 font-mono">08:00 às 18:30</span>
+            </div>
+            <div className="p-3 bg-black/80 rounded border border-white/10 text-center">
+              <span className="font-mono text-xs uppercase font-bold text-brand-gold block">
+                Quarta-feira
+              </span>
+              <span className="text-[11px] text-brand-cream/40 font-mono">08:00 às 18:30</span>
+            </div>
+          </div>
+
+          {/* Semanas do Mês */}
+          <div className="space-y-3">
+            {monthWeeks.map((week) => (
+              <div key={week.weekNumber} className="space-y-1">
+                <div className="flex items-center gap-2 px-1">
+                  <span className="text-[10px] font-mono text-brand-cream/40 uppercase tracking-wider">
+                    Semana {week.weekNumber}
+                  </span>
+                  <div className="flex-1 h-px bg-white/5" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {week.days.map((d) => {
+                    const isSelected = selectedDate === d.date;
+                    return (
+                      <div
+                        key={d.date}
+                        className={`p-3.5 rounded border transition flex flex-col justify-between min-h-[160px] ${
+                          isSelected
+                            ? 'border-brand-gold bg-brand-gold/10 text-brand-cream shadow-lg'
+                            : d.isCurrentMonth
+                            ? 'border-white/10 bg-[#141414] text-brand-cream hover:border-white/20'
+                            : 'border-white/5 bg-black/20 text-brand-cream/40 opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <div>
+                          {/* Topo do Card do Dia */}
+                          <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-bold text-brand-gold">
+                                {d.dayNum}
+                              </span>
+                              <span className="text-[11px] font-mono text-brand-cream/60 uppercase">
+                                {d.monthShort} • {d.label}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              {d.isToday && (
+                                <span className="text-[9px] font-mono uppercase bg-emerald-950 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                                  Hoje
+                                </span>
+                              )}
+                              <span className="text-[10px] font-mono text-brand-cream/60 bg-black/60 px-2 py-0.5 rounded border border-white/5 font-bold">
+                                {d.stats.total} agendamento(s)
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Mini Badges de Status */}
+                          {d.stats.total > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                              {d.stats.confirmed > 0 && (
+                                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-950/80 text-sky-300 border border-sky-500/20">
+                                  {d.stats.confirmed} conf.
+                                </span>
+                              )}
+                              {d.stats.inProgress > 0 && (
+                                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-500/20">
+                                  {d.stats.inProgress} atend.
+                                </span>
+                              )}
+                              {d.stats.completed > 0 && (
+                                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/20">
+                                  {d.stats.completed} concl.
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Lista resumida de clientes do dia */}
+                          <div className="mt-2.5 space-y-1">
+                            {d.appointments.length === 0 ? (
+                              <p className="text-[11px] font-mono text-brand-cream/30 py-2">
+                                Horários livres. Nenhum atendimento marcado.
+                              </p>
+                            ) : (
+                              d.appointments.slice(0, 3).map((apt) => (
+                                <div
+                                  key={apt.id}
+                                  className="text-[11px] font-mono flex items-center justify-between p-1 rounded bg-black/40 border border-white/5"
+                                >
+                                  <div className="truncate pr-1">
+                                    <span className="text-brand-gold font-bold mr-1.5">{apt.timeSlot}</span>
+                                    <span className="text-brand-cream/90 truncate">{apt.customerName}</span>
+                                  </div>
+                                  <span className="text-[10px] text-brand-cream/50 truncate shrink-0">
+                                    {apt.barberName}
+                                  </span>
+                                </div>
+                              ))
+                            )}
+                            {d.appointments.length > 3 && (
+                              <p className="text-[10px] font-mono text-brand-cream/40 text-right pt-0.5">
+                                + {d.appointments.length - 3} outro(s)...
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Botões de Ação do Dia */}
+                        <div className="flex items-center gap-2 pt-3 border-t border-white/5 mt-3">
+                          <button
+                            onClick={() => {
+                              setSelectedDate(d.date);
+                              const [y, m, dayNum] = d.date.split('-').map(Number);
+                              setCurrentWeekMonday(getMondayOfWeek(new Date(y, m - 1, dayNum, 12, 0, 0)));
+                              setPeriodMode('weekly');
+                              setViewMode('grid');
+                            }}
+                            className="flex-1 py-1 px-2 rounded bg-black/60 hover:bg-white/10 border border-white/10 text-[11px] font-mono text-brand-cream text-center transition"
+                            title="Abrir a grade detalhada com todos os horários e barbeiros deste dia"
+                          >
+                            Abrir Grade
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedDate(d.date);
+                              setAppointmentDate(d.date);
+                              const [y, m, dayNum] = d.date.split('-').map(Number);
+                              const targetDate = new Date(y, m - 1, dayNum, 12, 0, 0);
+                              const slots = getTimeSlotsForDay(targetDate);
+                              setTimeSlot(slots[0] || '14:00');
+                              handleOpenNew();
+                            }}
+                            className="py-1 px-2.5 rounded bg-brand-gold/20 hover:bg-brand-gold text-brand-gold hover:text-brand-black border border-brand-gold/40 text-[11px] font-mono font-bold transition flex items-center gap-1"
+                            title="Novo agendamento nesta data"
+                          >
+                            <Plus size={11} />
+                            <span>Agendar</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MÉTRICAS RÁPIDAS DO DIA SELECIONADO (MODO SEMANAL)        */}
+      {/* ========================================================= */}
+      {periodMode === 'weekly' && viewMode !== 'list' && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div className="p-3 rounded bg-black/40 border border-white/10 text-center">
             <span className="text-[10px] font-mono text-brand-cream/50 uppercase block">Total do Dia</span>
@@ -599,11 +996,11 @@ export const BarberAgenda = ({
       )}
 
       {/* ========================================================= */}
-      {/* MODO 1: GRADE DE HORÁRIOS (DEFAULT)                       */}
+      {/* MODO 1: GRADE DE HORÁRIOS DO DIA (SEMANAL)                */}
       {/* ========================================================= */}
-      {viewMode === 'grid' && (
+      {periodMode === 'weekly' && viewMode === 'grid' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {TIME_SLOTS.map((slot) => {
+          {activeDaySlots.map((slot) => {
             const slotApts = filteredAppointments.filter((a) => a.timeSlot === slot);
             const hasApt = slotApts.length > 0;
 
@@ -707,9 +1104,9 @@ export const BarberAgenda = ({
       )}
 
       {/* ========================================================= */}
-      {/* MODO 2: TIMELINE POR BARBEIRO / CADEIRA                   */}
+      {/* MODO 2: TIMELINE POR BARBEIRO / CADEIRA (SEMANAL)         */}
       {/* ========================================================= */}
-      {viewMode === 'timeline' && (
+      {periodMode === 'weekly' && viewMode === 'timeline' && (
         <div className="space-y-4">
           {barbersList.map((barber) => {
             const barberApts = filteredAppointments.filter((a) => a.barberName === barber.name);
@@ -755,9 +1152,9 @@ export const BarberAgenda = ({
       )}
 
       {/* ========================================================= */}
-      {/* MODO 3: LISTA COMPLETA                                    */}
+      {/* MODO 3: LISTA COMPLETA (SEMANAL)                          */}
       {/* ========================================================= */}
-      {viewMode === 'list' && (
+      {periodMode === 'weekly' && viewMode === 'list' && (
         <div className="overflow-x-auto rounded border border-white/10 bg-[#141414]">
           <table className="w-full text-left text-xs text-brand-cream">
             <thead className="bg-black/60 font-mono text-[10px] uppercase text-brand-cream/60 border-b border-white/10">
@@ -852,6 +1249,16 @@ export const BarberAgenda = ({
             </div>
 
             <form onSubmit={handleSaveAppointment} className="space-y-4">
+              {/* Alerta caso a data não seja permitida */}
+              {!isAppointmentDateValid && (
+                <div className="p-3 bg-red-950/80 border border-red-500/40 rounded text-xs text-red-200 flex items-center gap-2">
+                  <AlertTriangle size={14} className="text-red-400 shrink-0" />
+                  <span>
+                    Os atendimentos do Clube da Barba ocorrem exclusivamente de <strong>Segunda a Quarta-feira</strong>. Por favor, selecione uma data válida.
+                  </span>
+                </div>
+              )}
+
               {/* Tipo de Cliente na criação */}
               {!isEditing && (
                 <div className="flex items-center gap-2 p-1 bg-black/60 border border-white/10 rounded w-fit">
@@ -931,7 +1338,6 @@ export const BarberAgenda = ({
                         required
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Ex: Carlos Silva"
                         className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
                       />
                     </div>
@@ -945,7 +1351,6 @@ export const BarberAgenda = ({
                         required
                         value={customerPhone}
                         onChange={(e) => setCustomerPhone(e.target.value)}
-                        placeholder="48999999999"
                         className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none"
                       />
                     </div>
@@ -997,14 +1402,29 @@ export const BarberAgenda = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                    Data *
+                    Data (Segunda a Quarta) *
                   </label>
                   <input
                     type="date"
                     required
                     value={appointmentDate}
-                    onChange={(e) => setAppointmentDate(e.target.value)}
-                    className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none"
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      setAppointmentDate(newDate);
+                      if (newDate) {
+                        const [y, m, d] = newDate.split('-').map(Number);
+                        const targetDate = new Date(y, m - 1, d, 12, 0, 0);
+                        const slots = getTimeSlotsForDay(targetDate);
+                        if (slots.length > 0 && !slots.includes(timeSlot)) {
+                          setTimeSlot(slots[0]);
+                        }
+                      }
+                    }}
+                    className={`w-full bg-black/70 border rounded px-3 py-2 text-xs text-brand-cream font-mono focus:outline-none ${
+                      isAppointmentDateValid
+                        ? 'border-white/15 focus:border-brand-gold'
+                        : 'border-red-500/60 text-red-300'
+                    }`}
                   />
                 </div>
 
@@ -1017,7 +1437,7 @@ export const BarberAgenda = ({
                     onChange={(e) => setTimeSlot(e.target.value)}
                     className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none"
                   >
-                    {TIME_SLOTS.map((t) => (
+                    {modalSlots.map((t) => (
                       <option key={t} value={t}>
                         {t}
                       </option>
@@ -1067,7 +1487,6 @@ export const BarberAgenda = ({
                   type="text"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Ex: Prefere degradê na navalha, café sem açúcar..."
                   className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
                 />
               </div>
@@ -1083,8 +1502,8 @@ export const BarberAgenda = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
-                  className="px-5 py-2 text-xs font-display font-bold uppercase tracking-wider bg-brand-gold text-brand-black rounded hover:bg-brand-gold-light transition disabled:opacity-50"
+                  disabled={submitting || !isAppointmentDateValid}
+                  className="px-5 py-2 text-xs font-display font-bold uppercase tracking-wider bg-brand-gold text-brand-black rounded hover:bg-brand-gold-light transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Confirmar Agendamento'}
                 </button>

@@ -22,28 +22,26 @@ import { SITE } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
 
-const EXPERIENCE_ITEMS = [
+const DEFAULT_EXPERIENCE_ICONS = [Scissors, Flame, Coffee, CalendarCheck];
+
+const FALLBACK_EXPERIENCE_ITEMS = [
   {
-    icon: Scissors,
     title: 'Barbeiros especialistas',
     text: 'Técnica clássica e tendências atuais, executadas com precisão.',
   },
   {
-    icon: Flame,
     title: 'Toalha quente & navalha',
     text: 'O ritual tradicional de barba, do jeito que tem que ser.',
   },
   {
-    icon: Coffee,
     title: 'Conforto na espera',
     text: 'Sofá, TV e bebida gelada enquanto chega a sua vez.',
   },
   {
-    icon: CalendarCheck,
     title: 'Ordem de chegada & Clube',
     text: 'Sem burocracia: chegou, sentou, é seu. E sem fechar ao meio-dia.',
   },
-] as const;
+];
 
 /**
  * Página inicial — Server Component oficial da Beck Barbearia.
@@ -59,16 +57,29 @@ const App = async () => {
     getAboutContent(),
   ]);
 
+  const experienceList =
+    siteContent?.experienceItemsJson && siteContent.experienceItemsJson.length > 0
+      ? siteContent.experienceItemsJson
+      : FALLBACK_EXPERIENCE_ITEMS;
+
+  const fullAddress = `${siteContent?.addressStreet || 'Avenida Barriga Verde, 300'}, ${siteContent?.addressDistrict || 'Centro'} - ${siteContent?.addressCity || 'Balneário Arroio do Silva'}/${siteContent?.addressState || 'SC'}`;
+
   return (
     <>
       {/* Banner de Campanhas & Cupons de Topo */}
       <PromotionBanner />
 
-      <Navbar />
+      <Navbar
+        logoUrl={siteContent?.logoUrl}
+        whatsappNumber={siteContent?.whatsappNumber}
+      />
 
       <main className="relative bg-brand-black text-brand-cream">
-        {/* Hero com parallax e imagem de fundo dinâmica do CMS */}
-        <HeroParallax bgImage={siteContent?.heroImage} />
+        {/* Hero com parallax e logotipo dinâmico do CMS */}
+        <HeroParallax
+          bgImage={siteContent?.heroImage}
+          logoUrl={siteContent?.logoUrl}
+        />
 
         {/* Faixa Marquee */}
         <ServicesMarquee />
@@ -83,7 +94,7 @@ const App = async () => {
             <div className="relative">
               <div className="relative aspect-[4/5] overflow-hidden rounded border border-brand-gold/20 shadow-card">
                 <Image
-                  src={aboutContent?.founderPhoto || '/images/hero-bg-2.webp'}
+                  src={siteContent?.experiencePhoto || aboutContent?.founderPhoto || '/images/hero-bg-2.webp'}
                   alt="Beck Barbearia — Tradição e Excelência"
                   fill
                   sizes="(max-width: 1024px) 100vw, 50vw"
@@ -107,27 +118,33 @@ const App = async () => {
                 eyebrow="A experiência Beck"
                 title={
                   <>
-                    Mais que um corte,{' '}
-                    <span className="bg-gold-gradient bg-clip-text text-transparent">um ritual</span>
+                    {siteContent?.experienceTitle || 'Mais que um corte, um ritual'}
                   </>
                 }
-                description="Ambiente clássico, atendimento de primeira e a atenção aos detalhes que faz a diferença. Aqui, cada visita é um momento seu."
+                description={
+                  siteContent?.experienceDescription ||
+                  'Ambiente clássico, atendimento de primeira e a atenção aos detalhes que faz a diferença. Aqui, cada visita é um momento seu.'
+                }
               />
 
               <ul className="mt-12 grid gap-8 sm:grid-cols-2">
-                {EXPERIENCE_ITEMS.map((item) => (
-                  <li key={item.title} className="flex gap-4">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm border border-brand-gold/40 bg-brand-graphite text-brand-gold">
-                      <item.icon className="h-5 w-5" />
-                    </span>
-                    <div>
-                      <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-brand-cream">
-                        {item.title}
-                      </h3>
-                      <p className="mt-1.5 text-sm leading-relaxed text-brand-cream/60">{item.text}</p>
-                    </div>
-                  </li>
-                ))}
+                {experienceList.map((item, index) => {
+                  const IconComponent = DEFAULT_EXPERIENCE_ICONS[index % DEFAULT_EXPERIENCE_ICONS.length] || Scissors;
+
+                  return (
+                    <li key={`${item.title}-${index}`} className="flex gap-4">
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm border border-brand-gold/40 bg-brand-graphite text-brand-gold">
+                        <IconComponent className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-brand-cream">
+                          {item.title}
+                        </h3>
+                        <p className="mt-1.5 text-sm leading-relaxed text-brand-cream/60">{item.text}</p>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           </div>
@@ -208,7 +225,13 @@ const App = async () => {
 
             <div className="mt-16 space-y-16">
               <ServicePriceList services={services} />
-              <OpeningHours />
+              <OpeningHours
+                hours={siteContent?.hoursJson || undefined}
+                walkInTitle={siteContent?.walkInTitle}
+                walkInSubtitle={siteContent?.walkInSubtitle}
+                mapsUrl={siteContent?.mapsUrl}
+                fullAddressText={fullAddress}
+              />
             </div>
           </div>
         </section>
@@ -235,7 +258,11 @@ const App = async () => {
 
             <div className="mt-16 grid gap-8 lg:grid-cols-3">
               {plans.map((plan) => (
-                <PlanCard key={plan.id} plan={plan} />
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  whatsappNumber={siteContent?.whatsappNumber}
+                />
               ))}
             </div>
 
@@ -278,11 +305,24 @@ const App = async () => {
         </section>
 
         {/* Prova Social / Avaliações */}
-        <ReviewsSection />
+        <ReviewsSection
+          googleRating={siteContent?.googleRating}
+          googleReviewsCount={siteContent?.googleReviewsCount}
+          reviews={siteContent?.reviewsJson || undefined}
+          mapsUrl={siteContent?.mapsUrl}
+        />
       </main>
 
-      <Footer />
-      <FloatingWhatsApp />
+      <Footer
+        logoUrl={siteContent?.logoUrl}
+        whatsappNumber={siteContent?.whatsappNumber}
+        whatsappDisplay={siteContent?.whatsappDisplay}
+        addressText={fullAddress}
+        mapsUrl={siteContent?.mapsUrl}
+        instagramUrl={siteContent?.instagramUrl}
+        hours={siteContent?.hoursJson || undefined}
+      />
+      <FloatingWhatsApp whatsappNumber={siteContent?.whatsappNumber} />
     </>
   );
 };

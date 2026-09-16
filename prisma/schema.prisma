@@ -18,10 +18,29 @@ datasource db {
 
 model SiteContent {
   id              String   @id @default("default")
+  logoUrl         String   @default("/images/logo-removebg-preview.png")
   heroTitle       String   @default("Beck Barbearia")
   heroSubtitle    String   @default("Estilo não é moda, é atitude.")
   heroSlogan      String   @default("Seu estilo, nossa missão! Chegou, sentou, é seu!")
   heroImage       String   @default("/images/hero-bg.webp")
+  
+  // Seção Experiência & Ritual
+  experienceTitle       String @default("Mais que um corte, um ritual")
+  experienceDescription String @default("Ambiente clássico, atendimento de primeira e a atenção aos detalhes que faz a diferença. Aqui, cada visita é um momento seu.")
+  experiencePhoto       String @default("/images/hero-bg-2.webp")
+  experienceItemsJson   Json?  // [{ title: string, text: string }]
+
+  // Horários e Banner de Funcionamento
+  walkInTitle           String @default("Chegou, sentou, é seu!")
+  walkInSubtitle        String @default("Atendimento por ordem de chegada — sem hora marcada")
+  hoursJson             Json?  // [{ days: string, time: string, open: boolean }]
+
+  // Prova Social / Avaliações
+  googleRating          Float  @default(4.9)
+  googleReviewsCount    Int    @default(150)
+  reviewsJson           Json?  // [{ name: string, role: string, rating: number, date: string, comment: string }]
+
+  // Contatos
   whatsappNumber  String   @default("554899578323")
   whatsappDisplay String   @default("+55 48 9957-8323")
   addressStreet   String   @default("Avenida Barriga Verde, 300")
@@ -30,7 +49,8 @@ model SiteContent {
   addressState    String   @default("SC")
   mapsUrl         String?
   instagramUrl    String   @default("https://instagram.com/beckbarbearia")
-  hoursJson       Json?
+
+  // Aviso do Clube
   noticeTitle     String   @default("Atenção aos dias de atendimento do Clube")
   noticeText      String   @default("Os planos do Clube da Barba são válidos exclusivamente para atendimentos de segunda a quarta-feira.")
   updatedAt       DateTime @updatedAt
@@ -42,8 +62,8 @@ model AboutContent {
   subtitle      String   @default("A barbearia tradicional de Balneário Arroio do Silva feita para quem valoriza a autêntica navalha e toalha quente.")
   storyText     String
   manifestoText String
-  founderName   String   @default("Henrique Becker")
-  founderRole   String   @default("Mestre Barbeiro & Fundador")
+  founderName   String   @default("")
+  founderRole   String   @default("")
   founderBio    String
   founderPhoto  String   @default("/images/hero-bg-2.webp")
   shopPhotos    Json?
@@ -160,7 +180,7 @@ model Appointment {
   customerPhone   String
   planName        String?
   serviceType     String
-  barberName      String        @default("Henrique Becker")
+  barberName      String        @default("Barbeiro")
   barberId        String?
   barber          Barber?       @relation(fields: [barberId], references: [id], onDelete: SetNull)
   priceInCents    Int           @default(3500)

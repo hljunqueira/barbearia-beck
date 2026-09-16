@@ -15,6 +15,7 @@ const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 interface HeroParallaxProps {
   bgImage?: string;
+  logoUrl?: string;
 }
 
 /**
@@ -22,7 +23,10 @@ interface HeroParallaxProps {
  * Foco exclusivo na presença visual da marca: Imagem de fundo atmosférica + Logo centralizada.
  * Zero textos ou botões concorrendo com a identidade visual.
  */
-export const HeroParallax = ({ bgImage = '/images/hero-bg.webp' }: HeroParallaxProps) => {
+export const HeroParallax = ({
+  bgImage = '/images/hero-bg.webp',
+  logoUrl = '/images/logo-removebg-preview.png',
+}: HeroParallaxProps) => {
   const container = useRef<HTMLElement>(null);
 
   useGSAP(
@@ -104,7 +108,7 @@ export const HeroParallax = ({ bgImage = '/images/hero-bg.webp' }: HeroParallaxP
       <div className="hero-logo-wrap relative z-10 flex w-full flex-col items-center px-6 py-20 text-center will-change-transform">
         <div className="hero-logo relative aspect-[536/466] w-[300px] drop-shadow-[0_20px_50px_rgba(0,0,0,0.95)] sm:w-[420px] md:w-[480px] lg:w-[540px]">
           <Image
-            src="/images/logo-removebg-preview.png"
+            src={logoUrl || '/images/logo-removebg-preview.png'}
             alt="Beck Barbearia"
             fill
             priority

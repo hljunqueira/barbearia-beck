@@ -2,8 +2,9 @@ import { Check, Minus } from 'lucide-react';
 import type { BillingCycle, Plan } from '@/types';
 import { cn } from '@/lib/utils';
 import { splitPrice } from '@/lib/format';
-import { whatsappLink } from '@/lib/site';
+import { SITE, whatsappLink } from '@/lib/site';
 import { BrandButton } from '@/components/BrandButton';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 
 const CYCLE_LABEL: Record<BillingCycle, string> = {
   monthly: 'mês',
@@ -13,12 +14,16 @@ const CYCLE_LABEL: Record<BillingCycle, string> = {
 
 interface PlanCardProps {
   plan: Plan;
+  whatsappNumber?: string;
 }
 
-export const PlanCard = ({ plan }: PlanCardProps) => {
+export const PlanCard = ({ plan, whatsappNumber }: PlanCardProps) => {
   const { integer, decimal } = splitPrice(plan.priceInCents);
 
-  const subscribeHref = whatsappLink(`Olá! Quero assinar o ${plan.name} da Beck Barbearia.`);
+  // Link direto para negociação de planos e assinaturas no WhatsApp da barbearia
+  const phone = whatsappNumber ? whatsappNumber.replace(/\D/g, '') : SITE.whatsappNumber;
+  const messageText = `Olá! Gostaria de negociar a assinatura do ${plan.name} (R$ ${integer},${decimal}/mês) da Beck Barbearia.`;
+  const subscribeHref = `https://wa.me/${phone}?text=${encodeURIComponent(messageText)}`;
 
   return (
     <article
@@ -77,8 +82,10 @@ export const PlanCard = ({ plan }: PlanCardProps) => {
           variant={plan.highlighted ? 'gold' : 'outline'}
           size="full"
           data-testid={`plan-cta-${plan.slug}`}
+          className="flex items-center justify-center gap-2"
         >
-          Assinar plano
+          <WhatsAppIcon className="h-4 w-4" />
+          <span>Negociar no WhatsApp</span>
         </BrandButton>
 
         <div className="mt-3 text-center">

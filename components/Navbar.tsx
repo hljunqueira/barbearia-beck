@@ -7,7 +7,7 @@ import { Menu, X, User, ShieldCheck } from 'lucide-react';
 import { BrandButton } from '@/components/BrandButton';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { NavPortals } from '@/components/NavPortals';
-import { whatsappLink } from '@/lib/site';
+import { SITE, whatsappLink } from '@/lib/site';
 
 const NAV_LINKS = [
   { label: 'Sobre', href: '/sobre' },
@@ -18,8 +18,15 @@ const NAV_LINKS = [
   { label: 'Dúvidas', href: '/#duvidas' },
 ] as const;
 
-export const Navbar = () => {
+interface NavbarProps {
+  logoUrl?: string;
+  whatsappNumber?: string;
+}
+
+export const Navbar = ({ logoUrl, whatsappNumber }: NavbarProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const phone = whatsappNumber ? whatsappNumber.replace(/\D/g, '') : SITE.whatsappNumber;
+  const customWhatsappLink = `https://wa.me/${phone}?text=${encodeURIComponent('Olá! Quero mais informações sobre a Beck Barbearia.')}`;
 
   return (
     <header
@@ -34,7 +41,7 @@ export const Navbar = () => {
           className="relative h-14 w-16 transition-transform hover:scale-105"
         >
           <Image
-            src="/images/logo-removebg-preview.png"
+            src={logoUrl || '/images/logo-removebg-preview.png'}
             alt="Beck Barbearia"
             fill
             sizes="64px"
@@ -61,7 +68,7 @@ export const Navbar = () => {
           <NavPortals />
 
           <BrandButton
-            href={whatsappLink('Olá! Quero mais informações sobre a Beck Barbearia.')}
+            href={customWhatsappLink}
             size="sm"
             data-testid="nav-cta"
           >
@@ -144,7 +151,7 @@ export const Navbar = () => {
           {/* Botão WhatsApp */}
           <div className="pt-5">
             <BrandButton
-              href={whatsappLink('Olá! Quero mais informações sobre a Beck Barbearia.')}
+              href={customWhatsappLink}
               size="full"
               className="w-full justify-center"
             >

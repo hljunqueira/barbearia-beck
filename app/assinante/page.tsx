@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -148,17 +148,34 @@ export default function AssinantePage() {
     localStorage.removeItem('beck_subscriber_phone');
   };
 
-  // 14 dias futuros usando data local sem timezone shift
-  const upcomingDays = Array.from({ length: 14 }).map((_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i + 1);
-    const dateStr = formatLocalDate(d);
-    const isAllowed = isAllowedClubDay(d);
-    const dayOfWeekName = d.toLocaleDateString('pt-BR', { weekday: 'short' });
-    const dayOfMonth = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-
-    return { date: d, dateStr, isAllowed, dayOfWeekName, dayOfMonth };
-  });
+  // Próximos 12 dias exclusivos do Clube da Barba (Segunda a Quarta-feira)
+  const upcomingDays = useMemo(() => {
+    const days: {
+      date: Date;
+      dateStr: string;
+      isAllowed: boolean;
+      dayOfWeekName: string;
+      dayOfMonth: string;
+    }[] = [];
+    const checkDate = new Date();
+    while (days.length < 12) {
+      checkDate.setDate(checkDate.getDate() + 1);
+      if (isAllowedClubDay(checkDate)) {
+        const copy = new Date(checkDate);
+        const dateStr = formatLocalDate(copy);
+        const dayOfWeekName = copy.toLocaleDateString('pt-BR', { weekday: 'short' });
+        const dayOfMonth = copy.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        days.push({
+          date: copy,
+          dateStr,
+          isAllowed: true,
+          dayOfWeekName,
+          dayOfMonth,
+        });
+      }
+    }
+    return days;
+  }, []);
 
   // Slots para o dia selecionado
   const availableSlots = selectedDateStr
@@ -552,30 +569,27 @@ export default function AssinantePage() {
                     </div>
                   </div>
 
-                  {/* PASSO 2: ESCOLHA DA DATA */}
+                  {/* PASSO 2: ESCOLHA DA DATA (SEGUNDA A QUARTA) */}
                   <div className="border-t border-white/10 pt-5">
                     <label className="block text-xs font-mono uppercase tracking-wider text-brand-gold font-bold mb-2">
-                      2. Escolha o Dia (Segunda a Quarta):
+                      2. Escolha o Dia (Segunda a Quarta-feira):
                     </label>
 
-                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                       {upcomingDays.map((day) => {
                         const isSelected = selectedDateStr === day.dateStr;
                         return (
                           <button
                             key={day.dateStr}
                             type="button"
-                            disabled={!day.isAllowed}
                             onClick={() => {
                               setSelectedDateStr(day.dateStr);
                               setSelectedTimeSlot('');
                             }}
-                            className={`flex flex-col items-center justify-center rounded p-2 text-center transition ${
+                            className={`flex flex-col items-center justify-center rounded p-2.5 text-center transition ${
                               isSelected
-                                ? 'border-2 border-brand-gold bg-brand-gold text-brand-black font-bold'
-                                : day.isAllowed
-                                ? 'border border-white/10 bg-black/60 text-brand-cream hover:border-brand-gold/60'
-                                : 'border border-white/5 bg-zinc-900/30 text-brand-cream/20 cursor-not-allowed opacity-40'
+                                ? 'border-2 border-brand-gold bg-brand-gold text-brand-black font-bold shadow-md'
+                                : 'border border-white/10 bg-black/60 text-brand-cream hover:border-brand-gold/60'
                             }`}
                           >
                             <span className="text-[10px] uppercase font-mono">{day.dayOfWeekName}</span>
