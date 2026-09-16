@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Plus, Edit2, Trash2, Search, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Loader2, KeyRound } from 'lucide-react';
 import type { Barber, AdminUserItem } from '@/types';
 import {
   listBarbersAction,
@@ -18,6 +18,7 @@ import {
 } from '@/app/actions/authActions';
 import { TeamMemberModal, type TeamMemberSaveData, type TeamMemberType } from '@/components/admin/TeamMemberModal';
 import { SafeDeleteModal } from '@/components/admin/SafeDeleteModal';
+import { AdminPasswordModal } from '@/components/admin/AdminPasswordModal';
 
 interface TeamManagerProps {
   currentUsername?: string;
@@ -165,9 +166,27 @@ export function TeamManager({ currentUsername = 'Henrique' }: TeamManagerProps) 
     }
   };
 
+  // Modal de Alteração de Senha
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordModalAdmin, setPasswordModalAdmin] = useState<AdminUserItem | null>(null);
+
+  const handleOpenPasswordModal = (admin: AdminUserItem) => {
+    setPasswordModalAdmin(admin);
+    setIsPasswordModalOpen(true);
+  };
+
   // Exclusão Segura
-  const handleRequestDelete = (id: string, name: string, type: 'barber' | 'admin') => {
-    if (type === 'admin' && name.toLowerCase() === currentUsername.toLowerCase()) {
+  const handleRequestDelete = (
+    id: string,
+    name: string,
+    type: 'barber' | 'admin',
+    username?: string
+  ) => {
+    if (
+      type === 'admin' &&
+      ((username && username.toLowerCase() === currentUsername.toLowerCase()) ||
+        name.toLowerCase() === currentUsername.toLowerCase())
+    ) {
       showFeedback('Você não pode excluir o usuário que está atualmente logado.', true);
       return;
     }
@@ -449,8 +468,18 @@ export function TeamManager({ currentUsername = 'Henrique' }: TeamManagerProps) 
                           </p>
                         </div>
 
-                        <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-end gap-2">
+                        <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-end gap-2 flex-wrap">
                           <button
+                            type="button"
+                            onClick={() => handleOpenPasswordModal(admin)}
+                            className="px-2.5 py-1 rounded border border-brand-gold/30 hover:bg-brand-gold/10 text-brand-gold text-[11px] font-mono uppercase flex items-center gap-1 transition"
+                            title="Alterar Senha do Administrador"
+                          >
+                            <KeyRound size={12} />
+                            <span>Alterar Senha</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleOpenEditAdmin(admin)}
                             className="px-2.5 py-1 rounded border border-white/10 hover:border-brand-gold/50 text-brand-cream/80 hover:text-brand-gold text-[11px] font-mono uppercase flex items-center gap-1 transition"
                           >
@@ -459,7 +488,8 @@ export function TeamManager({ currentUsername = 'Henrique' }: TeamManagerProps) 
                           </button>
                           {!isSelf && (
                             <button
-                              onClick={() => handleRequestDelete(admin.id, admin.name, 'admin')}
+                              type="button"
+                              onClick={() => handleRequestDelete(admin.id, admin.name, 'admin', admin.username)}
                               className="px-2.5 py-1 rounded border border-red-500/20 text-red-400 hover:bg-red-950/40 text-[11px] font-mono uppercase flex items-center gap-1 transition"
                             >
                               <Trash2 size={12} />
@@ -485,6 +515,20 @@ export function TeamManager({ currentUsername = 'Henrique' }: TeamManagerProps) 
         editingAdmin={editingAdmin}
         onClose={() => setIsMemberModalOpen(false)}
         onSave={handleSaveMember}
+      />
+
+      {/* Modal Dedicado de Alteração de Senha */}
+      <AdminPasswordModal
+        isOpen={isPasswordModalOpen}
+        adminUser={passwordModalAdmin}
+        onClose={() => {
+          setIsPasswordModalOpen(false);
+          setPasswordModalAdmin(null);
+        }}
+        onSuccess={() => {
+          showFeedback('Senha do administrador atualizada com sucesso!');
+          loadData();
+        }}
       />
 
       {/* Modal Seguro de Exclusão */}

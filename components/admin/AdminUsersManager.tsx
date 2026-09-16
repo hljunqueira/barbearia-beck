@@ -349,10 +349,9 @@ export function AdminUsersManager({ currentUsername = 'Henrique' }: AdminUsersMa
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Henrique"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="mt-1 w-full rounded border border-white/10 bg-brand-black px-3.5 py-2.5 text-xs text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none"
+                  className="mt-1 w-full rounded border border-white/10 bg-brand-black px-3.5 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
                 />
               </div>
 
@@ -364,10 +363,9 @@ export function AdminUsersManager({ currentUsername = 'Henrique' }: AdminUsersMa
                   type="text"
                   required
                   disabled={!!editingAdmin}
-                  placeholder="Ex: henrique"
                   value={username}
                   onChange={(e) => setUsername(e.target.value.toLowerCase().trim())}
-                  className="mt-1 w-full rounded border border-white/10 bg-brand-black px-3.5 py-2.5 text-xs text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none disabled:opacity-50 font-mono"
+                  className="mt-1 w-full rounded border border-white/10 bg-brand-black px-3.5 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none disabled:opacity-50 font-mono"
                 />
                 {editingAdmin && (
                   <span className="text-[10px] text-brand-cream/40 mt-1 block">
@@ -383,10 +381,9 @@ export function AdminUsersManager({ currentUsername = 'Henrique' }: AdminUsersMa
                 <input
                   type="password"
                   required={!editingAdmin}
-                  placeholder={editingAdmin ? '••••••••' : 'Mínimo 6 caracteres'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 w-full rounded border border-white/10 bg-brand-black px-3.5 py-2.5 text-xs text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none"
+                  className="mt-1 w-full rounded border border-white/10 bg-brand-black px-3.5 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
                 />
               </div>
 

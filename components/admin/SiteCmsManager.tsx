@@ -531,7 +531,6 @@ export function SiteCmsManager() {
                       required
                       value={founderName}
                       onChange={(e) => setFounderName(e.target.value)}
-                      placeholder="Ex: Henrique Becker"
                       className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
                     />
                   </div>

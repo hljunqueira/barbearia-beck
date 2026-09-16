@@ -58,6 +58,8 @@ export function TeamMemberModal({
   // Campos Admin
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changePassword, setChangePassword] = useState(false);
   const [adminRole, setAdminRole] = useState('admin');
 
   const [saving, setSaving] = useState(false);
@@ -74,11 +76,15 @@ export function TeamMemberModal({
       setActive(editingBarber.active ?? true);
       setUsername('');
       setPassword('');
+      setConfirmPassword('');
+      setChangePassword(false);
     } else if (editingAdmin) {
       setMemberType('admin');
       setName(editingAdmin.name);
       setUsername(editingAdmin.username);
       setPassword('');
+      setConfirmPassword('');
+      setChangePassword(false);
       setAdminRole(editingAdmin.role || 'admin');
       setPhone('');
       setRoleTitle('');
@@ -94,6 +100,8 @@ export function TeamMemberModal({
       setActive(true);
       setUsername('');
       setPassword('');
+      setConfirmPassword('');
+      setChangePassword(true);
       setAdminRole('admin');
     }
     setError(null);
@@ -124,9 +132,24 @@ export function TeamMemberModal({
         setError('O nome de usuário (login) deve ter pelo menos 3 caracteres.');
         return;
       }
-      if (!isEditing && (!password || password.length < 6)) {
-        setError('A senha inicial para novo administrador deve ter no mínimo 6 caracteres.');
-        return;
+      if (!isEditing) {
+        if (!password || password.length < 6) {
+          setError('A senha inicial para novo administrador deve ter no mínimo 6 caracteres.');
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError('A confirmação da senha não coincide com a senha informada.');
+          return;
+        }
+      } else if (changePassword) {
+        if (!password || password.length < 6) {
+          setError('A nova senha deve ter no mínimo 6 caracteres.');
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError('A confirmação da nova senha não coincide com a nova senha.');
+          return;
+        }
       }
     }
 
@@ -143,6 +166,10 @@ export function TeamMemberModal({
 
     setSaving(true);
     try {
+      const adminPasswordToSend = isEditing
+        ? (changePassword && password.trim() ? password.trim() : undefined)
+        : password.trim();
+
       const res = await onSave({
         memberType,
         id: editingBarber?.id || editingAdmin?.id,
@@ -153,7 +180,7 @@ export function TeamMemberModal({
         bio: bio.trim() || undefined,
         active,
         username: username.trim() || undefined,
-        password: password || undefined,
+        password: adminPasswordToSend,
         adminRole,
       });
 
@@ -254,7 +281,6 @@ export function TeamMemberModal({
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ex: Matheus Becker"
                     className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
                   />
                 </div>
@@ -269,7 +295,6 @@ export function TeamMemberModal({
                     required
                     value={roleTitle}
                     onChange={(e) => setRoleTitle(e.target.value)}
-                    placeholder="Ex: Mestre Barbeiro"
                     className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
                   />
                 </div>
@@ -283,7 +308,6 @@ export function TeamMemberModal({
                     type="text"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="(47) 99999-9999"
                     className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none transition"
                   />
                 </div>
@@ -300,7 +324,6 @@ export function TeamMemberModal({
                       rows={4}
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
-                      placeholder="Breve resumo da trajetória, técnicas e estilo de corte para exibição no portal..."
                       className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition resize-none"
                     />
                   </div>
@@ -350,7 +373,6 @@ export function TeamMemberModal({
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ex: Henrique Administrador"
                     className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
                   />
                 </div>
@@ -358,15 +380,19 @@ export function TeamMemberModal({
                 {/* Usuário Login */}
                 <div>
                   <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                    Login de Acesso *
+                    {isEditing ? 'Login de Acesso (Fixo)' : 'Login de Acesso *'}
                   </label>
                   <input
                     type="text"
                     required
+                    disabled={isEditing}
                     value={username}
                     onChange={(e) => setUsername(e.target.value.toLowerCase().trim())}
-                    placeholder="Ex: henrique"
-                    className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none transition"
+                    className={`w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono transition ${
+                      isEditing
+                        ? 'opacity-60 bg-black/30 cursor-not-allowed border-white/10'
+                        : 'focus:border-brand-gold focus:outline-none'
+                    }`}
                   />
                 </div>
 
@@ -386,28 +412,93 @@ export function TeamMemberModal({
                 </div>
               </div>
 
-              {/* Linha 2: Senha */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                    {isEditing ? 'Nova Senha (deixe em branco para manter)' : 'Senha de Acesso *'}
-                  </label>
-                  <input
-                    type="password"
-                    required={!isEditing}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
-                    className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none transition"
-                  />
-                </div>
+              {/* SEÇÃO DE SENHA */}
+              {isEditing ? (
+                <div className="p-4 bg-black/40 border border-white/10 rounded space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-display text-xs font-bold uppercase tracking-wider text-brand-gold">
+                        Segurança & Senha de Acesso
+                      </h4>
+                      <p className="text-[11px] text-brand-cream/50">
+                        Altere a credencial deste administrador caso necessário
+                      </p>
+                    </div>
 
-                <div className="p-3 bg-black/40 border border-white/10 rounded flex flex-col justify-center">
-                  <p className="text-[11px] text-brand-cream/70 leading-relaxed">
-                    Administradores possuem acesso irrestrito ao painel, configurações de horários, produtos, cupons e clientes. A senha é criptografada com algoritmo scrypt seguro.
-                  </p>
+                    <label className="flex items-center gap-2 cursor-pointer bg-black/60 border border-white/15 px-3 py-1.5 rounded hover:border-brand-gold/40 transition">
+                      <input
+                        type="checkbox"
+                        checked={changePassword}
+                        onChange={(e) => {
+                          setChangePassword(e.target.checked);
+                          if (!e.target.checked) {
+                            setPassword('');
+                            setConfirmPassword('');
+                          }
+                        }}
+                        className="rounded border-white/20 bg-black text-brand-gold focus:ring-brand-gold"
+                      />
+                      <span className="text-xs font-mono text-brand-cream">Alterar Senha</span>
+                    </label>
+                  </div>
+
+                  {changePassword && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-white/10">
+                      <div>
+                        <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                          Nova Senha *
+                        </label>
+                        <input
+                          type="password"
+                          required={changePassword}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                          Confirmar Nova Senha *
+                        </label>
+                        <input
+                          type="password"
+                          required={changePassword}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none transition"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                      Senha de Acesso Inicial *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                      Confirmar Senha *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

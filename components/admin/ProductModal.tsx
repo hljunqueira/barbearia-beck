@@ -196,7 +196,6 @@ export function ProductModal({
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ex: Pomada Matte Efeito Seco 100g"
                 className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
               />
             </div>
