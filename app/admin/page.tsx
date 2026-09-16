@@ -61,9 +61,9 @@ import { loginAdminAction } from '@/app/actions/authActions';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [usernameInput, setUsernameInput] = useState('Henrique');
+  const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
-  const [currentUser, setCurrentUser] = useState('Henrique');
+  const [currentUser, setCurrentUser] = useState('Admin');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -397,9 +397,9 @@ export default function AdminPage() {
                 type="text"
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="Ex: Henrique"
+                autoFocus
                 required
-                className="w-full rounded border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-brand-cream placeholder:text-white/30 focus:border-brand-gold focus:outline-none"
+                className="w-full rounded border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
               />
             </div>
 
@@ -411,10 +411,8 @@ export default function AdminPage() {
                 type="password"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="Digite a senha"
-                autoFocus
                 required
-                className="w-full rounded border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-brand-cream placeholder:text-white/30 focus:border-brand-gold focus:outline-none"
+                className="w-full rounded border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
               />
             </div>
 
@@ -425,12 +423,8 @@ export default function AdminPage() {
             )}
 
             <BrandButton type="submit" size="full" className="justify-center" disabled={isAuthenticating}>
-              {isAuthenticating ? 'Validando acesso...' : 'Acessar Painel'}
+              {isAuthenticating ? 'Entrando...' : 'Entrar'}
             </BrandButton>
-
-            <p className="text-center text-[10px] text-brand-cream/40">
-              Administrador padrão: <span className="text-brand-gold font-medium">Henrique</span>
-            </p>
           </form>
 
           <div className="mt-6 border-t border-white/10 pt-4 text-center">
