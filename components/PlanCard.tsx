@@ -18,7 +18,6 @@ interface PlanCardProps {
 export const PlanCard = ({ plan }: PlanCardProps) => {
   const { integer, decimal } = splitPrice(plan.priceInCents);
 
-  // TODO(karfex): substituir por createCheckoutSession({ planId: plan.karfexPlanId })
   const subscribeHref = whatsappLink(`Olá! Quero assinar o ${plan.name} da Beck Barbearia.`);
 
   return (

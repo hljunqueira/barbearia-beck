@@ -41,7 +41,6 @@ export const plansRepository: PlansRepository = {
       features: (p.features as unknown as Plan['features']) || [],
       highlighted: p.highlighted,
       badge: p.badge,
-      karfexPlanId: p.karfexPlanId,
     }));
   },
 
@@ -62,7 +61,6 @@ export const plansRepository: PlansRepository = {
       features: (p.features as unknown as Plan['features']) || [],
       highlighted: p.highlighted,
       badge: p.badge,
-      karfexPlanId: p.karfexPlanId,
     };
   },
 
@@ -97,7 +95,6 @@ export const productsRepository: ProductsRepository = {
       imageUrl: prod.imageUrl,
       inStock: prod.inStock,
       rating: prod.rating,
-      karfexProductId: prod.karfexProductId,
     }));
   },
 
@@ -118,7 +115,6 @@ export const productsRepository: ProductsRepository = {
       imageUrl: prod.imageUrl,
       inStock: prod.inStock,
       rating: prod.rating,
-      karfexProductId: prod.karfexProductId,
     };
   },
 };

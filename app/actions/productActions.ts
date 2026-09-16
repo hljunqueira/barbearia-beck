@@ -21,7 +21,6 @@ export async function listAdminProducts(): Promise<Product[]> {
       imageUrl: prod.imageUrl,
       inStock: prod.inStock,
       rating: prod.rating,
-      karfexProductId: prod.karfexProductId,
     }));
   } catch (error) {
     console.error('Erro ao listar produtos admin:', error);
@@ -77,7 +76,6 @@ export async function createProduct(data: {
         imageUrl: newProd.imageUrl,
         inStock: newProd.inStock,
         rating: newProd.rating,
-        karfexProductId: newProd.karfexProductId,
       },
     };
   } catch (error: any) {

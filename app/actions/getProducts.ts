@@ -6,8 +6,7 @@ import { productsRepository } from '@/lib/repositories';
 /**
  * Server Action — Produtos
  *
- * Retorna o catálogo de produtos (pomadas, óleos, balms e kits) com tipagem estrita.
- * Fonte simulada até a integração com Prisma / API karfex.
+ * Retorna o catálogo de produtos persistidos no Supabase PostgreSQL via Prisma.
  */
 export async function getProducts(): Promise<Product[]> {
   const products = await productsRepository.list();

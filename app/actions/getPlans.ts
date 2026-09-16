@@ -7,9 +7,7 @@ import { PLAN_VALIDITY_NOTICE } from '@/lib/data/plans';
 /**
  * Server Action — Clube da Barba
  *
- * Retorna os planos de assinatura com tipagem estrita.
- * Hoje a fonte é simulada (lib/data/plans.ts). Para conectar Prisma ou a API
- * karfex basta trocar `plansRepository` em lib/repositories.ts.
+ * Retorna os planos de assinatura persistidos no Supabase PostgreSQL via Prisma.
  */
 export async function getPlans(): Promise<Plan[]> {
   const plans = await plansRepository.list();

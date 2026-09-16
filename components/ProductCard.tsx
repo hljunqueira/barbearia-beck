@@ -36,7 +36,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const hasDiscount =
     product.compareAtPriceInCents !== null && product.compareAtPriceInCents > product.priceInCents;
 
-  // TODO(karfex): substituir por checkout do produto (product.karfexProductId)
   const buyHref = whatsappLink(`Olá! Tenho interesse no produto ${product.name}.`);
 
   return (

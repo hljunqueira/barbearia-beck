@@ -1,8 +1,7 @@
 import type { Product } from '@/types';
 
 /**
- * Catálogo simulado de produtos.
- * Fonte temporária até a integração com Prisma (prisma.product.findMany) ou API karfex.
+ * Catálogo padrão de produtos da Beck Barbearia.
  */
 export const MOCK_PRODUCTS: readonly Product[] = [
   {
@@ -17,7 +16,6 @@ export const MOCK_PRODUCTS: readonly Product[] = [
     imageUrl: '/images/pomada-classica.webp',
     inStock: true,
     rating: 4.9,
-    karfexProductId: null,
   },
   {
     id: '7b1e9c3a-5d2f-4a6b-9c8d-2e3f4a5b6c02',
@@ -31,7 +29,6 @@ export const MOCK_PRODUCTS: readonly Product[] = [
     imageUrl: '/images/pomada-matte.webp',
     inStock: true,
     rating: 4.8,
-    karfexProductId: null,
   },
   {
     id: '7b1e9c3a-5d2f-4a6b-9c8d-2e3f4a5b6c03',
@@ -45,7 +42,6 @@ export const MOCK_PRODUCTS: readonly Product[] = [
     imageUrl: '/images/oleo-barba.webp',
     inStock: true,
     rating: 5,
-    karfexProductId: null,
   },
   {
     id: '7b1e9c3a-5d2f-4a6b-9c8d-2e3f4a5b6c04',
@@ -59,7 +55,6 @@ export const MOCK_PRODUCTS: readonly Product[] = [
     imageUrl: '/images/balm-barba.webp',
     inStock: true,
     rating: 4.7,
-    karfexProductId: null,
   },
   {
     id: '7b1e9c3a-5d2f-4a6b-9c8d-2e3f4a5b6c05',
@@ -73,7 +68,6 @@ export const MOCK_PRODUCTS: readonly Product[] = [
     imageUrl: '/images/kit-barbear.webp',
     inStock: true,
     rating: 4.9,
-    karfexProductId: null,
   },
   {
     id: '7b1e9c3a-5d2f-4a6b-9c8d-2e3f4a5b6c06',
@@ -87,6 +81,5 @@ export const MOCK_PRODUCTS: readonly Product[] = [
     imageUrl: '/images/kit-completo.webp',
     inStock: true,
     rating: 4.8,
-    karfexProductId: null,
   },
 ];

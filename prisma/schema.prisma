@@ -65,7 +65,6 @@ model Product {
   imageUrl              String
   inStock               Boolean  @default(true)
   rating                Float    @default(5.0)
-  karfexProductId       String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -100,7 +99,6 @@ model Plan {
   features     Json     // [{ label: string, included: boolean }]
   highlighted  Boolean  @default(false)
   badge        String?
-  karfexPlanId String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -124,22 +122,21 @@ model Barber {
 // -------------------------------------------------------------
 
 model Subscription {
-  id                   String        @id @default(uuid())
-  customerName         String
-  customerPhone        String
-  customerEmail        String
-  planSlug             String
-  planName             String
-  priceInCents         Int
-  status               String        @default("active") // active, pending, canceled, past_due
-  startDate            String
-  nextBillingDate      String
-  karfexSubscriptionId String?
-  planId               String?
-  plan                 Plan?         @relation(fields: [planId], references: [id], onDelete: SetNull)
-  appointments         Appointment[]
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  id              String        @id @default(uuid())
+  customerName    String
+  customerPhone   String
+  customerEmail   String
+  planSlug        String
+  planName        String
+  priceInCents    Int
+  status          String        @default("active") // active, pending, canceled, past_due
+  startDate       String
+  nextBillingDate String
+  planId          String?
+  plan            Plan?         @relation(fields: [planId], references: [id], onDelete: SetNull)
+  appointments    Appointment[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([customerEmail])
   @@index([customerPhone])

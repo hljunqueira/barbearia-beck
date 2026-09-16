@@ -1,6 +1,6 @@
 /**
  * Tipagens de domínio — Beck Barbearia
- * Compartilhadas entre Server Actions, repositórios (mock / Prisma / karfex) e UI.
+ * Compartilhadas entre Server Actions, repositórios (Supabase PostgreSQL via Prisma) e UI.
  */
 
 export type Currency = 'BRL';
@@ -59,8 +59,6 @@ export interface Plan {
   readonly features: readonly PlanFeature[];
   readonly highlighted: boolean;
   readonly badge: string | null;
-  /** ID do plano no gateway karfex — preenchido quando a integração for ativada. */
-  readonly karfexPlanId: string | null;
 }
 
 export type ProductCategory = 'pomada' | 'oleo' | 'balm' | 'kit';
@@ -77,8 +75,6 @@ export interface Product {
   readonly inStock: boolean;
   /** Avaliação média de 0 a 5. */
   readonly rating: number;
-  /** ID do produto no gateway karfex — preenchido quando a integração for ativada. */
-  readonly karfexProductId: string | null;
 }
 
 /** Envelope padrão para respostas de Server Actions que podem falhar. */
@@ -99,7 +95,6 @@ export interface Subscription {
   readonly status: SubscriptionStatus;
   readonly startDate: string;
   readonly nextBillingDate: string;
-  readonly karfexSubscriptionId?: string | null;
 }
 
 export type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'canceled';

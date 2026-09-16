@@ -100,8 +100,7 @@
 
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
-#====================================================================================================
-user_problem_statement: "Landing page + fundação do sistema para a 'Beck Barbearia' (Next.js App Router, TypeScript, Tailwind, GSAP parallax via useGSAP/ScrollTrigger/matchMedia, Prisma + Server Actions). Seções: Hero (parallax, logo, CTA), Clube da Barba (planos), Produtos. Server Action simulada em app/actions/getPlans.ts com tipagens estritas; espaço para futura integração karfex."
+user_problem_statement: "Landing page + fundação do sistema para a 'Beck Barbearia' (Next.js App Router, TypeScript, Tailwind, GSAP parallax via useGSAP/ScrollTrigger/matchMedia, Prisma + Server Actions). Seções: Hero (parallax, logo, CTA), Clube da Barba (planos), Produtos."
 
 backend:
   - task: "Server Action getPlans (tipada, mock) consumida pelo Server Component page.tsx"

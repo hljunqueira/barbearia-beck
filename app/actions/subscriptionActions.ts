@@ -19,10 +19,10 @@ export async function listSubscriptions(): Promise<Subscription[]> {
       orderBy: { createdAt: 'desc' },
     });
 
-    return subs.map((s) => ({
+    return subs.map((s: any) => ({
       id: s.id,
       customerName: s.customerName,
-      customerPhone: s.customerPhone,
+      customerPhone: s.customerPhone ?? '',
       customerEmail: s.customerEmail,
       planSlug: s.planSlug as any,
       planName: s.planName,
@@ -30,7 +30,6 @@ export async function listSubscriptions(): Promise<Subscription[]> {
       status: s.status as SubscriptionStatus,
       startDate: s.startDate,
       nextBillingDate: s.nextBillingDate,
-      karfexSubscriptionId: s.karfexSubscriptionId,
     }));
   } catch (error) {
     console.error('Erro ao listar assinaturas:', error);
@@ -46,7 +45,7 @@ export async function findCustomerSubscription(identifier: string): Promise<Subs
     const cleanInput = identifier.trim().toLowerCase();
     const cleanPhone = normalizePhone(identifier);
 
-    const sub = await prisma.subscription.findFirst({
+    const sub: any = await prisma.subscription.findFirst({
       where: {
         OR: [
           { customerEmail: { equals: cleanInput, mode: 'insensitive' } },
@@ -60,7 +59,7 @@ export async function findCustomerSubscription(identifier: string): Promise<Subs
     return {
       id: sub.id,
       customerName: sub.customerName,
-      customerPhone: sub.customerPhone,
+      customerPhone: sub.customerPhone ?? '',
       customerEmail: sub.customerEmail,
       planSlug: sub.planSlug as any,
       planName: sub.planName,
@@ -68,7 +67,6 @@ export async function findCustomerSubscription(identifier: string): Promise<Subs
       status: sub.status as SubscriptionStatus,
       startDate: sub.startDate,
       nextBillingDate: sub.nextBillingDate,
-      karfexSubscriptionId: sub.karfexSubscriptionId,
     };
   } catch (error) {
     console.error('Erro ao buscar assinatura:', error);
@@ -95,7 +93,7 @@ export async function createSubscription(data: {
   const now = new Date();
   const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  const newSub = await prisma.subscription.create({
+  const newSub: any = await prisma.subscription.create({
     data: {
       customerName: data.customerName.trim(),
       customerPhone: normalizePhone(data.customerPhone),
@@ -106,7 +104,7 @@ export async function createSubscription(data: {
       status: data.status ?? 'active',
       startDate: now.toISOString().split('T')[0],
       nextBillingDate: nextMonth.toISOString().split('T')[0],
-      planId: plan?.id ?? null,
+      planId: plan?.id ?? undefined,
     },
   });
 
@@ -114,7 +112,7 @@ export async function createSubscription(data: {
   return {
     id: newSub.id,
     customerName: newSub.customerName,
-    customerPhone: newSub.customerPhone,
+    customerPhone: newSub.customerPhone ?? '',
     customerEmail: newSub.customerEmail,
     planSlug: newSub.planSlug as any,
     planName: newSub.planName,
@@ -156,11 +154,11 @@ export async function listAppointments(subscriptionId?: string): Promise<Appoint
       orderBy: [{ date: 'asc' }, { timeSlot: 'asc' }],
     });
 
-    return apts.map((a) => ({
+    return apts.map((a: any) => ({
       id: a.id,
       subscriptionId: a.subscriptionId,
       customerName: a.customerName,
-      customerPhone: a.customerPhone,
+      customerPhone: a.customerPhone ?? '',
       planName: a.planName || undefined,
       serviceType: a.serviceType,
       barberName: a.barberName,

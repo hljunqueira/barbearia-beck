@@ -1,8 +1,7 @@
 import type { Plan, PlanRule } from '@/types';
 
 /**
- * Planos mensais do Clube da Barba — valores oficiais do flyer.
- * Fonte temporária até a integração com Prisma (prisma.plan.findMany) ou API karfex.
+ * Planos mensais do Clube da Barba.
  */
 export const MOCK_PLANS: readonly Plan[] = [
   {
@@ -22,7 +21,6 @@ export const MOCK_PLANS: readonly Plan[] = [
     ],
     highlighted: false,
     badge: null,
-    karfexPlanId: null,
   },
   {
     id: '0f6c1d2e-3a4b-4c5d-8e6f-1a2b3c4d5e02',
@@ -41,7 +39,6 @@ export const MOCK_PLANS: readonly Plan[] = [
     ],
     highlighted: false,
     badge: null,
-    karfexPlanId: null,
   },
   {
     id: '0f6c1d2e-3a4b-4c5d-8e6f-1a2b3c4d5e03',
@@ -60,7 +57,6 @@ export const MOCK_PLANS: readonly Plan[] = [
     ],
     highlighted: true,
     badge: 'Mais completo',
-    karfexPlanId: null,
   },
 ];
 
