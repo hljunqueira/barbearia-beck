@@ -1,29 +1,9 @@
 'use server';
 
 import type { Appointment, AppointmentStatus, Subscription, SubscriptionStatus } from '@/types';
-import {
-  INITIAL_APPOINTMENTS,
-  INITIAL_SUBSCRIPTIONS,
-  getTimeSlotsForDay,
-  isAllowedClubDay,
-} from '@/lib/data/subscriptions';
-
-declare global {
-  var __beck_subscriptions: Subscription[] | undefined;
-  var __beck_appointments: Appointment[] | undefined;
-}
-
-// Inicializa estado global em memória
-if (!global.__beck_subscriptions) {
-  global.__beck_subscriptions = [...INITIAL_SUBSCRIPTIONS];
-}
-
-if (!global.__beck_appointments) {
-  global.__beck_appointments = [...INITIAL_APPOINTMENTS];
-}
-
-const getSubscriptionsState = (): Subscription[] => global.__beck_subscriptions!;
-const getAppointmentsState = (): Appointment[] => global.__beck_appointments!;
+import { prisma } from '@/lib/prisma';
+import { getTimeSlotsForDay, isAllowedClubDay } from '@/lib/data/subscriptions';
+import { revalidatePath } from 'next/cache';
 
 /**
  * Normaliza número de telefone removendo pontuação para comparação.
@@ -31,31 +11,73 @@ const getAppointmentsState = (): Appointment[] => global.__beck_appointments!;
 const normalizePhone = (phone: string): string => phone.replace(/\D/g, '');
 
 /**
- * Lista todas as assinaturas (Admin).
+ * Lista todas as assinaturas reais da Beck Barbearia no Supabase PostgreSQL.
  */
 export async function listSubscriptions(): Promise<Subscription[]> {
-  return [...getSubscriptionsState()];
+  try {
+    const subs = await prisma.subscription.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return subs.map((s) => ({
+      id: s.id,
+      customerName: s.customerName,
+      customerPhone: s.customerPhone,
+      customerEmail: s.customerEmail,
+      planSlug: s.planSlug as any,
+      planName: s.planName,
+      priceInCents: s.priceInCents,
+      status: s.status as SubscriptionStatus,
+      startDate: s.startDate,
+      nextBillingDate: s.nextBillingDate,
+      karfexSubscriptionId: s.karfexSubscriptionId,
+    }));
+  } catch (error) {
+    console.error('Erro ao listar assinaturas:', error);
+    return [];
+  }
 }
 
 /**
- * Busca assinatura ativa de um cliente por telefone ou e-mail.
+ * Busca assinatura ativa de um cliente por telefone ou e-mail no PostgreSQL.
  */
 export async function findCustomerSubscription(identifier: string): Promise<Subscription | null> {
-  const cleanInput = identifier.trim().toLowerCase();
-  const cleanPhone = normalizePhone(identifier);
-  const subs = getSubscriptionsState();
+  try {
+    const cleanInput = identifier.trim().toLowerCase();
+    const cleanPhone = normalizePhone(identifier);
 
-  const found = subs.find((s) => {
-    const matchEmail = s.customerEmail.toLowerCase() === cleanInput;
-    const matchPhone = cleanPhone.length >= 8 && normalizePhone(s.customerPhone).includes(cleanPhone);
-    return matchEmail || matchPhone;
-  });
+    const sub = await prisma.subscription.findFirst({
+      where: {
+        OR: [
+          { customerEmail: { equals: cleanInput, mode: 'insensitive' } },
+          { customerPhone: { contains: cleanPhone } },
+        ],
+      },
+    });
 
-  return found ?? null;
+    if (!sub) return null;
+
+    return {
+      id: sub.id,
+      customerName: sub.customerName,
+      customerPhone: sub.customerPhone,
+      customerEmail: sub.customerEmail,
+      planSlug: sub.planSlug as any,
+      planName: sub.planName,
+      priceInCents: sub.priceInCents,
+      status: sub.status as SubscriptionStatus,
+      startDate: sub.startDate,
+      nextBillingDate: sub.nextBillingDate,
+      karfexSubscriptionId: sub.karfexSubscriptionId,
+    };
+  } catch (error) {
+    console.error('Erro ao buscar assinatura:', error);
+    return null;
+  }
 }
 
 /**
- * Cria ou cadastra manualmente uma nova assinatura (Admin).
+ * Cria uma nova assinatura no Supabase PostgreSQL.
  */
 export async function createSubscription(data: {
   customerName: string;
@@ -66,52 +88,98 @@ export async function createSubscription(data: {
   priceInCents: number;
   status?: SubscriptionStatus;
 }): Promise<Subscription> {
-  const newSub: Subscription = {
-    id: `sub-${Date.now()}`,
-    customerName: data.customerName.trim(),
-    customerPhone: normalizePhone(data.customerPhone),
-    customerEmail: data.customerEmail.trim().toLowerCase(),
-    planSlug: data.planSlug,
-    planName: data.planName,
-    priceInCents: data.priceInCents,
-    status: data.status ?? 'active',
-    startDate: new Date().toISOString().split('T')[0],
-    nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-  };
+  const plan = await prisma.plan.findUnique({
+    where: { slug: data.planSlug },
+  });
 
-  getSubscriptionsState().unshift(newSub);
-  return newSub;
+  const now = new Date();
+  const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  const newSub = await prisma.subscription.create({
+    data: {
+      customerName: data.customerName.trim(),
+      customerPhone: normalizePhone(data.customerPhone),
+      customerEmail: data.customerEmail.trim().toLowerCase(),
+      planSlug: data.planSlug,
+      planName: data.planName,
+      priceInCents: data.priceInCents,
+      status: data.status ?? 'active',
+      startDate: now.toISOString().split('T')[0],
+      nextBillingDate: nextMonth.toISOString().split('T')[0],
+      planId: plan?.id ?? null,
+    },
+  });
+
+  revalidatePath('/admin');
+  return {
+    id: newSub.id,
+    customerName: newSub.customerName,
+    customerPhone: newSub.customerPhone,
+    customerEmail: newSub.customerEmail,
+    planSlug: newSub.planSlug as any,
+    planName: newSub.planName,
+    priceInCents: newSub.priceInCents,
+    status: newSub.status as SubscriptionStatus,
+    startDate: newSub.startDate,
+    nextBillingDate: newSub.nextBillingDate,
+  };
 }
 
 /**
- * Atualiza o status de uma assinatura (Admin).
+ * Atualiza o status de uma assinatura no PostgreSQL.
  */
 export async function updateSubscriptionStatus(
   id: string,
   status: SubscriptionStatus,
 ): Promise<{ ok: boolean; error?: string }> {
-  const subs = getSubscriptionsState();
-  const sub = subs.find((s) => s.id === id);
-  if (!sub) return { ok: false, error: 'Assinatura não encontrada' };
+  try {
+    await prisma.subscription.update({
+      where: { id },
+      data: { status },
+    });
 
-  // Atualiza campo
-  (sub as any).status = status;
-  return { ok: true };
+    revalidatePath('/admin');
+    return { ok: true };
+  } catch (error: any) {
+    console.error('Erro ao atualizar status da assinatura:', error);
+    return { ok: false, error: 'Assinatura não encontrada' };
+  }
 }
 
 /**
- * Lista todos os agendamentos (Admin ou filtrado por assinatura).
+ * Lista todos os agendamentos reais (Admin ou filtrado por assinatura).
  */
 export async function listAppointments(subscriptionId?: string): Promise<Appointment[]> {
-  const apts = getAppointmentsState();
-  if (subscriptionId) {
-    return apts.filter((a) => a.subscriptionId === subscriptionId);
+  try {
+    const apts = await prisma.appointment.findMany({
+      where: subscriptionId ? { subscriptionId } : undefined,
+      orderBy: [{ date: 'asc' }, { timeSlot: 'asc' }],
+    });
+
+    return apts.map((a) => ({
+      id: a.id,
+      subscriptionId: a.subscriptionId,
+      customerName: a.customerName,
+      customerPhone: a.customerPhone,
+      planName: a.planName || undefined,
+      serviceType: a.serviceType,
+      barberName: a.barberName,
+      priceInCents: a.priceInCents,
+      durationMinutes: a.durationMinutes,
+      date: a.date,
+      timeSlot: a.timeSlot,
+      status: a.status as AppointmentStatus,
+      notes: a.notes || undefined,
+      createdAt: a.createdAt.toISOString(),
+    }));
+  } catch (error) {
+    console.error('Erro ao listar agendamentos:', error);
+    return [];
   }
-  return [...apts];
 }
 
 /**
- * Cria um novo agendamento com validação estrita de Segunda a Quarta.
+ * Cria um novo agendamento do assinante com validação estrita de Segunda a Quarta.
  */
 export async function bookAppointment(data: {
   subscriptionId: string;
@@ -123,75 +191,104 @@ export async function bookAppointment(data: {
   timeSlot: string; // HH:mm
   notes?: string;
 }): Promise<{ ok: boolean; appointment?: Appointment; error?: string }> {
-  // Validar assinatura
-  const subs = getSubscriptionsState();
-  const sub = subs.find((s) => s.id === data.subscriptionId);
-  if (!sub) {
-    return { ok: false, error: 'Assinatura não identificada.' };
-  }
+  try {
+    // Validar assinatura no banco
+    const sub = await prisma.subscription.findUnique({
+      where: { id: data.subscriptionId },
+    });
 
-  if (sub.status !== 'active') {
+    if (!sub) {
+      return { ok: false, error: 'Assinatura não identificada.' };
+    }
+
+    if (sub.status !== 'active') {
+      return {
+        ok: false,
+        error: 'Sua assinatura não está ativa. Fale com a recepção da barbearia.',
+      };
+    }
+
+    // Validação da data: apenas Segunda (1), Terça (2) ou Quarta (3)
+    const [year, month, day] = data.date.split('-').map(Number);
+    const targetDate = new Date(year, month - 1, day);
+
+    if (!isAllowedClubDay(targetDate)) {
+      return {
+        ok: false,
+        error: 'Os agendamentos do Clube da Barba são permitidos exclusivamente de segunda a quarta-feira.',
+      };
+    }
+
+    // Validação de horário para o dia
+    const validSlots = getTimeSlotsForDay(targetDate);
+    if (!validSlots.includes(data.timeSlot)) {
+      return {
+        ok: false,
+        error: `Horário ${data.timeSlot} inválido para este dia de atendimento.`,
+      };
+    }
+
+    // Verificar se o horário já está ocupado no PostgreSQL
+    const occupied = await prisma.appointment.findFirst({
+      where: {
+        date: data.date,
+        timeSlot: data.timeSlot,
+        status: { in: ['confirmed', 'in_progress'] },
+      },
+    });
+
+    if (occupied) {
+      return {
+        ok: false,
+        error: 'Este horário acabou de ser reservado por outro cliente. Por favor, escolha outro.',
+      };
+    }
+
+    const newApt = await prisma.appointment.create({
+      data: {
+        subscriptionId: sub.id,
+        customerName: data.customerName.trim(),
+        customerPhone: normalizePhone(data.customerPhone),
+        planName: data.planName,
+        serviceType: data.serviceType,
+        barberName: 'Henrique Becker',
+        date: data.date,
+        timeSlot: data.timeSlot,
+        status: 'confirmed',
+        notes: data.notes?.trim() || null,
+      },
+    });
+
+    revalidatePath('/admin');
+    revalidatePath('/assinante');
+
     return {
-      ok: false,
-      error: 'Sua assinatura não está ativa. Fale com a recepção da barbearia.',
+      ok: true,
+      appointment: {
+        id: newApt.id,
+        subscriptionId: newApt.subscriptionId,
+        customerName: newApt.customerName,
+        customerPhone: newApt.customerPhone,
+        planName: newApt.planName || undefined,
+        serviceType: newApt.serviceType,
+        barberName: newApt.barberName,
+        priceInCents: newApt.priceInCents,
+        durationMinutes: newApt.durationMinutes,
+        date: newApt.date,
+        timeSlot: newApt.timeSlot,
+        status: newApt.status as AppointmentStatus,
+        notes: newApt.notes || undefined,
+        createdAt: newApt.createdAt.toISOString(),
+      },
     };
+  } catch (error: any) {
+    console.error('Erro ao agendar horário:', error);
+    return { ok: false, error: 'Erro interno ao realizar agendamento.' };
   }
-
-  // Validação da data: parse UTC seguro
-  const [year, month, day] = data.date.split('-').map(Number);
-  const targetDate = new Date(year, month - 1, day);
-
-  // Regra fundamental: Apenas Segunda (1), Terça (2) ou Quarta (3)
-  if (!isAllowedClubDay(targetDate)) {
-    return {
-      ok: false,
-      error: 'Os agendamentos do Clube da Barba são permitidos exclusivamente de segunda a quarta-feira.',
-    };
-  }
-
-  // Validação de horário para o dia
-  const validSlots = getTimeSlotsForDay(targetDate);
-  if (!validSlots.includes(data.timeSlot)) {
-    return {
-      ok: false,
-      error: `Horário ${data.timeSlot} inválido para este dia de atendimento.`,
-    };
-  }
-
-  // Verificar se o horário já está ocupado por outro cliente
-  const apts = getAppointmentsState();
-  const isOccupied = apts.some(
-    (a) => a.date === data.date && a.timeSlot === data.timeSlot && a.status === 'confirmed',
-  );
-
-  if (isOccupied) {
-    return {
-      ok: false,
-      error: 'Este horário acabou de ser reservado por outro cliente. Por favor, escolha outro.',
-    };
-  }
-
-  const newAppointment: Appointment = {
-    id: `apt-${Date.now()}`,
-    subscriptionId: sub.id,
-    customerName: data.customerName,
-    customerPhone: data.customerPhone,
-    planName: data.planName,
-    serviceType: data.serviceType,
-    date: data.date,
-    timeSlot: data.timeSlot,
-    status: 'confirmed',
-    notes: data.notes,
-    createdAt: new Date().toISOString(),
-  };
-
-  apts.unshift(newAppointment);
-  return { ok: true, appointment: newAppointment };
 }
 
 /**
  * Cria um novo agendamento diretamente pela Agenda da Barbearia (Admin/Recepção).
- * Suporta clientes assinantes e clientes avulsos, qualquer barbeiro e dia da semana.
  */
 export async function createAdminAppointment(data: {
   customerName: string;
@@ -207,74 +304,135 @@ export async function createAdminAppointment(data: {
   notes?: string;
   status?: AppointmentStatus;
 }): Promise<{ ok: boolean; appointment?: Appointment; error?: string }> {
-  const apts = getAppointmentsState();
+  try {
+    const newApt = await prisma.appointment.create({
+      data: {
+        subscriptionId: data.subscriptionId ?? null,
+        customerName: data.customerName.trim(),
+        customerPhone: normalizePhone(data.customerPhone),
+        planName: data.planName ?? 'Avulso',
+        serviceType: data.serviceType,
+        barberName: data.barberName || 'Henrique Becker',
+        priceInCents: data.priceInCents ?? 3500,
+        durationMinutes: data.durationMinutes ?? 30,
+        date: data.date,
+        timeSlot: data.timeSlot,
+        status: data.status ?? 'confirmed',
+        notes: data.notes?.trim() || null,
+      },
+    });
 
-  const newAppointment: Appointment = {
-    id: `apt-${Date.now()}`,
-    subscriptionId: data.subscriptionId ?? null,
-    customerName: data.customerName.trim(),
-    customerPhone: normalizePhone(data.customerPhone),
-    planName: data.planName ?? 'Avulso',
-    serviceType: data.serviceType,
-    barberName: data.barberName || 'Henrique Becker',
-    priceInCents: data.priceInCents ?? 3500,
-    durationMinutes: data.durationMinutes ?? 30,
-    date: data.date,
-    timeSlot: data.timeSlot,
-    status: data.status ?? 'confirmed',
-    notes: data.notes?.trim() || '',
-    createdAt: new Date().toISOString(),
-  };
-
-  apts.unshift(newAppointment);
-  return { ok: true, appointment: newAppointment };
+    revalidatePath('/admin');
+    return {
+      ok: true,
+      appointment: {
+        id: newApt.id,
+        subscriptionId: newApt.subscriptionId,
+        customerName: newApt.customerName,
+        customerPhone: newApt.customerPhone,
+        planName: newApt.planName || undefined,
+        serviceType: newApt.serviceType,
+        barberName: newApt.barberName,
+        priceInCents: newApt.priceInCents,
+        durationMinutes: newApt.durationMinutes,
+        date: newApt.date,
+        timeSlot: newApt.timeSlot,
+        status: newApt.status as AppointmentStatus,
+        notes: newApt.notes || undefined,
+        createdAt: newApt.createdAt.toISOString(),
+      },
+    };
+  } catch (error: any) {
+    console.error('Erro ao criar agendamento admin:', error);
+    return { ok: false, error: 'Falha ao salvar agendamento.' };
+  }
 }
 
 /**
- * Atualiza os dados completos de um agendamento (Remarcar / Editar).
+ * Atualiza os dados completos de um agendamento.
  */
 export async function updateAppointmentDetails(
   id: string,
   data: Partial<Omit<Appointment, 'id' | 'createdAt'>>,
 ): Promise<{ ok: boolean; appointment?: Appointment; error?: string }> {
-  const apts = getAppointmentsState();
-  const index = apts.findIndex((a) => a.id === id);
-  if (index === -1) return { ok: false, error: 'Agendamento não encontrado.' };
+  try {
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: {
+        customerName: data.customerName?.trim(),
+        customerPhone: data.customerPhone ? normalizePhone(data.customerPhone) : undefined,
+        planName: data.planName,
+        serviceType: data.serviceType,
+        barberName: data.barberName,
+        priceInCents: data.priceInCents,
+        durationMinutes: data.durationMinutes,
+        date: data.date,
+        timeSlot: data.timeSlot,
+        status: data.status,
+        notes: data.notes?.trim() || null,
+      },
+    });
 
-  const current = apts[index];
-  const updated: Appointment = {
-    ...current,
-    ...data,
-    customerPhone: data.customerPhone ? normalizePhone(data.customerPhone) : current.customerPhone,
-  };
-
-  apts[index] = updated;
-  return { ok: true, appointment: updated };
+    revalidatePath('/admin');
+    return {
+      ok: true,
+      appointment: {
+        id: updated.id,
+        subscriptionId: updated.subscriptionId,
+        customerName: updated.customerName,
+        customerPhone: updated.customerPhone,
+        planName: updated.planName || undefined,
+        serviceType: updated.serviceType,
+        barberName: updated.barberName,
+        priceInCents: updated.priceInCents,
+        durationMinutes: updated.durationMinutes,
+        date: updated.date,
+        timeSlot: updated.timeSlot,
+        status: updated.status as AppointmentStatus,
+        notes: updated.notes || undefined,
+        createdAt: updated.createdAt.toISOString(),
+      },
+    };
+  } catch (error: any) {
+    console.error('Erro ao atualizar agendamento:', error);
+    return { ok: false, error: 'Falha ao atualizar agendamento.' };
+  }
 }
 
 /**
- * Atualiza o status de um agendamento (concluir, cancelar, em atendimento, confirmar).
+ * Atualiza o status de um agendamento.
  */
 export async function updateAppointmentStatus(
   id: string,
   status: AppointmentStatus,
 ): Promise<{ ok: boolean; error?: string }> {
-  const apts = getAppointmentsState();
-  const apt = apts.find((a) => a.id === id);
-  if (!apt) return { ok: false, error: 'Agendamento não encontrado' };
+  try {
+    await prisma.appointment.update({
+      where: { id },
+      data: { status },
+    });
 
-  (apt as any).status = status;
-  return { ok: true };
+    revalidatePath('/admin');
+    return { ok: true };
+  } catch (error: any) {
+    console.error('Erro ao atualizar status do agendamento:', error);
+    return { ok: false, error: 'Agendamento não encontrado' };
+  }
 }
 
 /**
- * Exclui permanentemente um agendamento da agenda.
+ * Exclui um agendamento do banco de dados.
  */
 export async function deleteAppointment(id: string): Promise<{ ok: boolean; error?: string }> {
-  const apts = getAppointmentsState();
-  const index = apts.findIndex((a) => a.id === id);
-  if (index === -1) return { ok: false, error: 'Agendamento não encontrado.' };
+  try {
+    await prisma.appointment.delete({
+      where: { id },
+    });
 
-  apts.splice(index, 1);
-  return { ok: true };
+    revalidatePath('/admin');
+    return { ok: true };
+  } catch (error: any) {
+    console.error('Erro ao excluir agendamento:', error);
+    return { ok: false, error: 'Falha ao excluir agendamento.' };
+  }
 }

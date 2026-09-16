@@ -84,3 +84,5 @@ node_modules/@next/swc-linux-arm64-gnu/next-swc.linux-arm64-gnu.node
 
 .vercel
 .env*
+!.env.example
+!vps-backend/.env.production.example

@@ -1,25 +1,21 @@
 import { NextResponse } from 'next/server';
-import { MongoClient } from 'mongodb';
-import { plansRepository, productsRepository } from '@/lib/repositories';
+import { prisma } from '@/lib/prisma';
+import { plansRepository, productsRepository, servicesRepository } from '@/lib/repositories';
+
+export const dynamic = 'force-dynamic';
 
 /**
- * API REST (somente leitura) — espelha as Server Actions para consumo externo
- * (apps, integrações, testes). Fonte de dados: lib/repositories.ts.
+ * API REST oficial — Beck Barbearia
  *
- * GET /api            -> health check (inclui ping no MongoDB)
- * GET /api/plans      -> planos do Clube da Barba
+ * GET /api            -> health check (status da aplicação e PostgreSQL Supabase)
+ * GET /api/plans      -> planos oficiais do Clube da Barba
  * GET /api/products   -> catálogo de produtos
+ * GET /api/services   -> catálogo de serviços
  */
 
-let client: MongoClient | null = null;
-
-async function pingMongo(): Promise<boolean> {
+async function pingDatabase(): Promise<boolean> {
   try {
-    if (!client) {
-      client = new MongoClient(process.env.MONGO_URL as string);
-      await client.connect();
-    }
-    await client.db(process.env.DB_NAME).command({ ping: 1 });
+    await prisma.$queryRaw`SELECT 1`;
     return true;
   } catch {
     return false;
@@ -45,11 +41,14 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   try {
     if (route === '/' || route === '/health') {
+      const isDbOk = await pingDatabase();
       return withCors(
         NextResponse.json({
           ok: true,
           service: 'beck-barbearia',
-          database: (await pingMongo()) ? 'connected' : 'unavailable',
+          database: isDbOk ? 'connected' : 'unavailable',
+          databaseEngine: 'Supabase PostgreSQL',
+          domain: 'beckbarbearia.com.br',
           timestamp: new Date().toISOString(),
         }),
       );
@@ -63,6 +62,11 @@ export async function GET(_request: Request, { params }: RouteContext) {
     if (route === '/products') {
       const products = await productsRepository.list();
       return withCors(NextResponse.json({ ok: true, data: products }));
+    }
+
+    if (route === '/services') {
+      const services = await servicesRepository.list();
+      return withCors(NextResponse.json({ ok: true, data: services }));
     }
 
     return withCors(

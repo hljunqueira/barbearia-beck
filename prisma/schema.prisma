@@ -1,86 +1,193 @@
-// Beck Barbearia — fundação do banco de dados
-// Provider: MongoDB (Prisma 6). IDs em UUID (sem ObjectId) para serialização simples.
-// Uso: npx prisma generate | npx prisma db push
+// Beck Barbearia — Banco de Dados Oficial (Supabase PostgreSQL)
+// Provider: PostgreSQL (Prisma 6)
+// Uso: npx prisma generate | npx prisma db push | node scripts/seed.mjs
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mongodb"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-enum BillingCycle {
-  monthly
-  quarterly
-  yearly
+// -------------------------------------------------------------
+// CONTEÚDO EDITÁVEL DO SITE (CMS DA LANDING PAGE E PÁGINA SOBRE)
+// -------------------------------------------------------------
+
+model SiteContent {
+  id              String   @id @default("default")
+  heroTitle       String   @default("Beck Barbearia")
+  heroSubtitle    String   @default("Estilo não é moda, é atitude.")
+  heroSlogan      String   @default("Seu estilo, nossa missão! Chegou, sentou, é seu!")
+  heroImage       String   @default("/images/hero-bg.webp")
+  whatsappNumber  String   @default("554899578323")
+  whatsappDisplay String   @default("+55 48 9957-8323")
+  addressStreet   String   @default("Avenida Barriga Verde, 300")
+  addressDistrict String   @default("Centro")
+  addressCity     String   @default("Balneário Arroio do Silva")
+  addressState    String   @default("SC")
+  mapsUrl         String?
+  instagramUrl    String   @default("https://instagram.com/beckbarbearia")
+  hoursJson       Json?
+  noticeTitle     String   @default("Atenção aos dias de atendimento do Clube")
+  noticeText      String   @default("Os planos do Clube da Barba são válidos exclusivamente para atendimentos de segunda a quarta-feira.")
+  updatedAt       DateTime @updatedAt
 }
 
-enum ProductCategory {
-  pomada
-  oleo
-  balm
-  kit
+model AboutContent {
+  id            String   @id @default("default")
+  title         String   @default("Tradição, Precisão & Respeito ao Estilo")
+  subtitle      String   @default("A barbearia tradicional de Balneário Arroio do Silva feita para quem valoriza a autêntica navalha e toalha quente.")
+  storyText     String
+  manifestoText String
+  founderName   String   @default("Henrique Becker")
+  founderRole   String   @default("Mestre Barbeiro & Fundador")
+  founderBio    String
+  founderPhoto  String   @default("/images/hero-bg-2.webp")
+  shopPhotos    Json?
+  updatedAt     DateTime @updatedAt
 }
 
-enum SubscriptionStatus {
-  pending
-  active
-  past_due
-  canceled
-}
-
-type PlanFeature {
-  label    String
-  included Boolean @default(true)
-}
-
-model Plan {
-  id           String        @id @default(uuid()) @map("_id")
-  slug         String        @unique
-  name         String
-  tagline      String
-  priceInCents Int
-  currency     String        @default("BRL")
-  billingCycle BillingCycle  @default(monthly)
-  features     PlanFeature[]
-  highlighted  Boolean       @default(false)
-  badge        String?
-  karfexPlanId String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  subscriptions Subscription[]
-}
+// -------------------------------------------------------------
+// PRODUTOS, SERVIÇOS E PLANOS DO CLUBE
+// -------------------------------------------------------------
 
 model Product {
-  id                    String          @id @default(uuid()) @map("_id")
-  slug                  String          @unique
+  id                    String   @id @default(uuid())
+  slug                  String   @unique
   name                  String
-  category              ProductCategory
+  category              String   // pomada, oleo, balm, kit
   description           String
   priceInCents          Int
   compareAtPriceInCents Int?
   imageUrl              String
-  inStock               Boolean         @default(true)
-  rating                Float           @default(5)
+  inStock               Boolean  @default(true)
+  rating                Float    @default(5.0)
   karfexProductId       String?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([category])
+  @@index([inStock])
 }
+
+model Service {
+  id              String   @id @default(uuid())
+  slug            String   @unique
+  name            String
+  category        String   @default("corte")
+  description     String
+  durationMinutes Int      @default(30)
+  priceInCents    Int
+  icon            String?
+  popular         Boolean  @default(false)
+  badge           String?
+  image           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Plan {
+  id           String   @id @default(uuid())
+  slug         String   @unique
+  name         String
+  tagline      String
+  priceInCents Int
+  currency     String   @default("BRL")
+  billingCycle String   @default("monthly")
+  features     Json     // [{ label: string, included: boolean }]
+  highlighted  Boolean  @default(false)
+  badge        String?
+  karfexPlanId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Barber {
+  id           String        @id @default(uuid())
+  name         String
+  role         String        @default("Barbeiro Profissional")
+  photoUrl     String?
+  bio          String?
+  active       Boolean       @default(true)
+  appointments Appointment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+// -------------------------------------------------------------
+// ASSINATURAS E AGENDAMENTOS REAIS
+// -------------------------------------------------------------
 
 model Subscription {
-  id                   String             @id @default(uuid()) @map("_id")
+  id                   String        @id @default(uuid())
   customerName         String
+  customerPhone        String
   customerEmail        String
-  customerPhone        String?
-  status               SubscriptionStatus @default(pending)
+  planSlug             String
+  planName             String
+  priceInCents         Int
+  status               String        @default("active") // active, pending, canceled, past_due
+  startDate            String
+  nextBillingDate      String
   karfexSubscriptionId String?
-  planId               String
-  plan                 Plan               @relation(fields: [planId], references: [id])
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  planId               String?
+  plan                 Plan?         @relation(fields: [planId], references: [id], onDelete: SetNull)
+  appointments         Appointment[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   @@index([customerEmail])
+  @@index([customerPhone])
+  @@index([status])
 }
+
+model Appointment {
+  id              String        @id @default(uuid())
+  subscriptionId  String?
+  subscription    Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  customerName    String
+  customerPhone   String
+  planName        String?
+  serviceType     String
+  barberName      String        @default("Henrique Becker")
+  barberId        String?
+  barber          Barber?       @relation(fields: [barberId], references: [id], onDelete: SetNull)
+  priceInCents    Int           @default(3500)
+  durationMinutes Int           @default(30)
+  date            String        // YYYY-MM-DD
+  timeSlot        String        // HH:mm
+  status          String        @default("confirmed") // confirmed, in_progress, completed, canceled
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([date, timeSlot])
+  @@index([subscriptionId])
+  @@index([status])
+}
+
+model PlanRule {
+  id          String   @id @default(uuid())
+  step        Int      @default(1)
+  icon        String   @default("calendar")
+  title       String
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AdminUser {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  name      String
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+

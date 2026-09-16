@@ -1,33 +1,21 @@
 # Beck Barbearia — PRD / Estado do Projeto
 
 ## Objetivo
-Landing page premium (preto / dourado / branco) + fundação técnica para a Beck Barbearia.
+Landing page premium + Clube da Barba + Gestão Completa (Admin CMS, Produtos, Página Sobre, Uploads de Imagens) para a **Beck Barbearia** em Balneário Arroio do Silva/SC.
 
 ## Stack
-- Next.js 15 (App Router) + TypeScript + React 18 + Tailwind 3.4 + shadcn (tokens)
-- GSAP 3.15 + @gsap/react (useGSAP, ScrollTrigger, matchMedia)
-- Prisma 6 (provider MongoDB, ids UUID) — schema em `prisma/schema.prisma`, client em `lib/prisma.ts`
-- Server Actions: `app/actions/getPlans.ts`, `app/actions/getProducts.ts` (mock tipado)
-- API REST espelho (read-only): `app/api/[[...path]]/route.ts` → `/api`, `/api/plans`, `/api/products`
+- **Frontend**: Next.js 15 (App Router) + TypeScript + React 18 + Tailwind CSS + Radix UI / Lucide
+- **Animações**: GSAP 3.15 + `@gsap/react` (`useGSAP`, `ScrollTrigger` com `scrub: 1`, `matchMedia`)
+- **Banco de Dados & Storage**: Supabase PostgreSQL + Supabase Storage (bucket público `beck-media`)
+- **ORM**: Prisma 6 com provider PostgreSQL
+- **Hospedagem**:
+  - Frontend: **Vercel** (`barbeariabeck`) sob o domínio oficial `beckbarbearia.com.br` (DNS Cloudflare).
+  - Backend na VPS: Containers Docker em `vps-backend/` (`api.beckbarbearia.com.br`).
+- **Arquitetura de Dados**: 100% real no Supabase PostgreSQL (zero mocks em produção).
+- **Upload de Fotos**: Sem campos de URL em texto. 100% upload de arquivos direto para o Supabase Storage.
 
-## Arquitetura
-- `app/page.tsx` = Server Component (busca planos/produtos via Server Actions)
-- `components/HeroParallax.tsx` = Client Component; todas as animações GSAP isoladas aqui
-  - `useGSAP` com `scope: useRef`, `ScrollTrigger` com `scrub: 1`
-  - `gsap.matchMedia`: parallax só em `(min-width: 769px)` e sem `prefers-reduced-motion`
-- Fonte de dados trocável em `lib/repositories.ts` (mock → Prisma → karfex)
-- `lib/karfex.ts` = contrato reservado para a futura API karfex (checkout/assinaturas)
-- `lib/site.ts` = config pública (WhatsApp via `NEXT_PUBLIC_WHATSAPP_NUMBER`, horários, endereço)
-
-## Design System
-- Cores: `brand.black #0A0A0A`, `brand.charcoal`, `brand.graphite`, `brand.gold #C9A227` (+light/dark), `brand.cream #F5F1E8`
-- Fontes: Cinzel (display) + Inter (texto) via next/font
-- Botão reutilizável: `components/BrandButton.tsx` (variants gold/outline/ghost/dark)
-- Imagens `.webp` em `public/images` (logo, hero-bg, hero-bg-2, 6 produtos)
-
-## Seções
-Navbar fixa · Hero (parallax, logo, CTAs) · Marquee de serviços · Experiência · Clube da Barba (3 planos) · Produtos (6) · CTA final · Footer (#contato)
-
-## Status
-- MVP completo; backend testado (9/9 testes passando); frontend validado por screenshot (desktop + mobile)
-- Pendências futuras: integração karfex (checkout), WhatsApp real, Prisma `db push` + seed, painel admin
+## Diretrizes e Memória
+Consulte a documentação viva em:
+- [.agents/AGENTS.md](file:///.agents/AGENTS.md) — Diretrizes e regras invioláveis.
+- [.agents/MEMORY.md](file:///.agents/MEMORY.md) — Memória detalhada da infraestrutura.
+- [.agents/skills/beck-barbearia-core/SKILL.md](file:///.agents/skills/beck-barbearia-core/SKILL.md) — Skill operacional e comandos.

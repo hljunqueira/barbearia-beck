@@ -1,17 +1,11 @@
 import type { Plan, PlanRule, Product, Service } from '@/types';
-import { MOCK_PLANS, PLAN_RULES } from '@/lib/data/plans';
-import { MOCK_PRODUCTS } from '@/lib/data/products';
-import { MOCK_SERVICES } from '@/lib/data/services';
+import { prisma } from '@/lib/prisma';
 
 /**
- * Camada de acesso a dados.
+ * Camada de acesso a dados oficiais da Beck Barbearia.
  *
- * As Server Actions consomem apenas estas interfaces, então trocar a fonte
- * (mock -> Prisma -> karfex) não exige alterações no frontend.
- *
- * Próximos passos previstos:
- *  - prismaPlansRepository:  () => prisma.plan.findMany({ orderBy: { priceInCents: 'asc' } })
- *  - karfexPlansRepository:  () => karfex.listPlans()  (ver lib/karfex.ts)
+ * Conectada 100% diretamente ao Supabase PostgreSQL via Prisma.
+ * Zero mocks em memória.
  */
 
 export interface PlansRepository {
@@ -30,37 +24,142 @@ export interface ServicesRepository {
   findBySlug(slug: string): Promise<Service | null>;
 }
 
-const mockPlansRepository: PlansRepository = {
+export const plansRepository: PlansRepository = {
   async list() {
-    return MOCK_PLANS;
+    const plans = await prisma.plan.findMany({
+      orderBy: { priceInCents: 'asc' },
+    });
+
+    return plans.map((p) => ({
+      id: p.id,
+      slug: p.slug as Plan['slug'],
+      name: p.name,
+      tagline: p.tagline,
+      priceInCents: p.priceInCents,
+      currency: (p.currency as Plan['currency']) || 'BRL',
+      billingCycle: (p.billingCycle as Plan['billingCycle']) || 'monthly',
+      features: (p.features as unknown as Plan['features']) || [],
+      highlighted: p.highlighted,
+      badge: p.badge,
+      karfexPlanId: p.karfexPlanId,
+    }));
   },
+
   async findBySlug(slug) {
-    return MOCK_PLANS.find((plan) => plan.slug === slug) ?? null;
+    const p = await prisma.plan.findUnique({
+      where: { slug },
+    });
+    if (!p) return null;
+
+    return {
+      id: p.id,
+      slug: p.slug as Plan['slug'],
+      name: p.name,
+      tagline: p.tagline,
+      priceInCents: p.priceInCents,
+      currency: (p.currency as Plan['currency']) || 'BRL',
+      billingCycle: (p.billingCycle as Plan['billingCycle']) || 'monthly',
+      features: (p.features as unknown as Plan['features']) || [],
+      highlighted: p.highlighted,
+      badge: p.badge,
+      karfexPlanId: p.karfexPlanId,
+    };
   },
+
   async rules() {
-    return PLAN_RULES;
+    const rules = await prisma.planRule.findMany({
+      orderBy: { step: 'asc' },
+    });
+
+    return rules.map((r: any) => ({
+      id: r.id,
+      icon: (r.icon as PlanRule['icon']) || 'calendar',
+      title: r.title,
+      description: r.description,
+    }));
   },
 };
 
-const mockServicesRepository: ServicesRepository = {
+export const productsRepository: ProductsRepository = {
   async list() {
-    return MOCK_SERVICES;
+    const products = await prisma.product.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return products.map((prod) => ({
+      id: prod.id,
+      slug: prod.slug,
+      name: prod.name,
+      category: prod.category as Product['category'],
+      description: prod.description,
+      priceInCents: prod.priceInCents,
+      compareAtPriceInCents: prod.compareAtPriceInCents,
+      imageUrl: prod.imageUrl,
+      inStock: prod.inStock,
+      rating: prod.rating,
+      karfexProductId: prod.karfexProductId,
+    }));
   },
+
   async findBySlug(slug) {
-    return MOCK_SERVICES.find((service) => service.slug === slug) ?? null;
+    const prod = await prisma.product.findUnique({
+      where: { slug },
+    });
+    if (!prod) return null;
+
+    return {
+      id: prod.id,
+      slug: prod.slug,
+      name: prod.name,
+      category: prod.category as Product['category'],
+      description: prod.description,
+      priceInCents: prod.priceInCents,
+      compareAtPriceInCents: prod.compareAtPriceInCents,
+      imageUrl: prod.imageUrl,
+      inStock: prod.inStock,
+      rating: prod.rating,
+      karfexProductId: prod.karfexProductId,
+    };
   },
 };
 
-const mockProductsRepository: ProductsRepository = {
+export const servicesRepository: ServicesRepository = {
   async list() {
-    return MOCK_PRODUCTS;
+    const services = await prisma.service.findMany({
+      orderBy: { priceInCents: 'asc' },
+    });
+
+    return services.map((s: any) => ({
+      id: s.id,
+      slug: s.slug,
+      name: s.name,
+      description: s.description,
+      priceInCents: s.priceInCents,
+      durationMinutes: s.durationMinutes,
+      icon: (s.icon as Service['icon']) || undefined,
+      popular: s.popular,
+      badge: s.badge || undefined,
+      image: s.image || undefined,
+    }));
   },
+
   async findBySlug(slug) {
-    return MOCK_PRODUCTS.find((product) => product.slug === slug) ?? null;
+    const s: any = await prisma.service.findUnique({
+      where: { slug },
+    });
+    if (!s) return null;
+
+    return {
+      id: s.id,
+      slug: s.slug,
+      name: s.name,
+      description: s.description,
+      priceInCents: s.priceInCents,
+      durationMinutes: s.durationMinutes,
+      icon: (s.icon as Service['icon']) || undefined,
+      popular: s.popular,
+      badge: s.badge || undefined,
+      image: s.image || undefined,
+    };
   },
 };
-
-// Ponto único de troca da fonte de dados.
-export const plansRepository: PlansRepository = mockPlansRepository;
-export const productsRepository: ProductsRepository = mockProductsRepository;
-export const servicesRepository: ServicesRepository = mockServicesRepository;

@@ -1,7 +1,10 @@
 import Image from 'next/image';
-import { CalendarCheck, Coffee, Flame, Scissors } from 'lucide-react';
+import Link from 'next/link';
+import { CalendarCheck, Coffee, Flame, Scissors, ArrowRight } from 'lucide-react';
 import { getPlanRules, getPlans } from '@/app/actions/getPlans';
 import { getServices } from '@/app/actions/getServices';
+import { getProducts } from '@/app/actions/getProducts';
+import { getSiteContent } from '@/app/actions/siteContentActions';
 import HeroParallax from '@/components/HeroParallax';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
@@ -9,11 +12,15 @@ import { ServicesMarquee } from '@/components/ServicesMarquee';
 import { SectionHeading } from '@/components/SectionHeading';
 import { PlanCard } from '@/components/PlanCard';
 import { PlanRules } from '@/components/PlanRules';
+import { ProductCard } from '@/components/ProductCard';
 import { ReviewsSection } from '@/components/ReviewsSection';
 import { FloatingWhatsApp } from '@/components/FloatingWhatsApp';
 import { ServicePriceList } from '@/components/ServicePriceList';
 import { OpeningHours } from '@/components/OpeningHours';
+import { BrandButton } from '@/components/BrandButton';
 import { SITE } from '@/lib/site';
+
+export const dynamic = 'force-dynamic';
 
 const EXPERIENCE_ITEMS = [
   {
@@ -39,14 +46,16 @@ const EXPERIENCE_ITEMS = [
 ] as const;
 
 /**
- * Página inicial — Server Component.
- * Arquitetura sóbria, elegante e sem excessos (estilo La Mafia Barbearia / Fellow Barber).
+ * Página inicial — Server Component oficial da Beck Barbearia.
+ * Conectado 100% ao PostgreSQL Supabase. Zero mocks em memória.
  */
 const App = async () => {
-  const [plans, planRules, services] = await Promise.all([
+  const [plans, planRules, services, products, siteContent] = await Promise.all([
     getPlans(),
     getPlanRules(),
     getServices(),
+    getProducts(),
+    getSiteContent(),
   ]);
 
   return (
@@ -54,13 +63,13 @@ const App = async () => {
       <Navbar />
 
       <main className="relative bg-brand-black text-brand-cream">
-        {/* Hero 100% limpo com foto atmosférica e logo centralizada */}
+        {/* Hero com parallax e imagem de fundo */}
         <HeroParallax />
 
-        {/* Faixa Marquee sutil */}
+        {/* Faixa Marquee */}
         <ServicesMarquee />
 
-        {/* A Experiência */}
+        {/* A Experiência Beck */}
         <section
           id="experiencia"
           data-testid="experience-section"
@@ -68,17 +77,17 @@ const App = async () => {
         >
           <div className="container grid items-center gap-16 lg:grid-cols-2">
             <div className="relative">
-              <div className="relative aspect-[4/5] overflow-hidden rounded-lg border border-brand-gold/20 shadow-card">
+              <div className="relative aspect-[4/5] overflow-hidden rounded border border-brand-gold/20 shadow-card">
                 <Image
-                  src="/images/hero-bg-2.webp"
-                  alt="Interior da Beck Barbearia com cadeira clássica de couro"
+                  src={siteContent?.heroImage || '/images/hero-bg-2.webp'}
+                  alt="Beck Barbearia — Cadeira clássica e ambiente de respeito"
                   fill
                   sizes="(max-width: 1024px) 100vw, 50vw"
                   className="object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-brand-black/80 via-transparent to-transparent" />
               </div>
-              <div className="absolute -bottom-6 -right-4 hidden rounded-lg border border-brand-gold/40 bg-brand-black px-8 py-6 shadow-gold md:block lg:-right-8">
+              <div className="absolute -bottom-6 -right-4 hidden rounded border border-brand-gold/40 bg-brand-black px-8 py-6 shadow-gold md:block lg:-right-8">
                 <p className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-brand-gold">
                   Beck
                 </p>
@@ -116,6 +125,17 @@ const App = async () => {
                   </li>
                 ))}
               </ul>
+
+              {/* Link para a Nova Página Sobre */}
+              <div className="mt-10 pt-6 border-t border-white/10 flex items-center gap-4">
+                <Link
+                  href="/sobre"
+                  className="group inline-flex items-center gap-2 font-display text-xs font-bold uppercase tracking-widest text-brand-gold hover:text-brand-cream transition"
+                >
+                  <span>Conheça nossa história completa e manifesto</span>
+                  <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
+                </Link>
+              </div>
             </div>
           </div>
         </section>
@@ -140,10 +160,7 @@ const App = async () => {
             />
 
             <div className="mt-16 space-y-16">
-              {/* Cards modernos de serviços com fotos reais e galeria ao clicar */}
               <ServicePriceList services={services} />
-
-              {/* Painel executivo de horários de funcionamento e localização */}
               <OpeningHours />
             </div>
           </div>
@@ -175,15 +192,47 @@ const App = async () => {
               ))}
             </div>
 
-            <PlanRules rules={planRules.rules} notice={planRules.notice} />
+            <PlanRules
+              rules={planRules.rules}
+              notice={{
+                title: siteContent?.noticeTitle || planRules.notice.title,
+                text: siteContent?.noticeText || planRules.notice.text,
+              }}
+            />
 
             <p className="mt-12 text-center font-display text-xs uppercase tracking-[0.3em] text-brand-gold/70">
-              {SITE.slogans.attitude}
+              {siteContent?.heroSubtitle || SITE.slogans.attitude}
             </p>
           </div>
         </section>
 
-        {/* Prova Social / Depoimentos Google */}
+        {/* Catálogo de Produtos Oficiais */}
+        <section
+          id="produtos"
+          data-testid="products-section"
+          className="relative scroll-mt-20 border-t border-white/5 bg-brand-black py-24 lg:py-32"
+        >
+          <div className="container relative">
+            <SectionHeading
+              eyebrow="Linha Exclusiva"
+              title={
+                <>
+                  Produtos para{' '}
+                  <span className="bg-gold-gradient bg-clip-text text-transparent">cabelo e barba</span>
+                </>
+              }
+              description="Pomadas de alta fixação, óleos nutritivos com fragrâncias nobres e balms para manter seu alinhamento em casa."
+            />
+
+            <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Prova Social / Avaliações */}
         <ReviewsSection />
       </main>
 

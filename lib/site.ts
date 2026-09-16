@@ -4,6 +4,8 @@
 export const SITE = {
   name: 'Beck Barbearia',
   tagline: 'Estilo não é moda, é atitude',
+  domain: 'beckbarbearia.com.br',
+  url: 'https://beckbarbearia.com.br',
   description:
     'Beck Barbearia em Balneário Arroio do Silva/SC — cortes, barba, luzes e platinado com atendimento por ordem de chegada. Planos mensais do Clube da Barba válidos de segunda a quarta-feira.',
   slogans: {
@@ -12,8 +14,8 @@ export const SITE = {
     attitude: 'Estilo não é moda, é atitude.',
   },
   // Formato internacional sem símbolos. Pode ser sobrescrito via NEXT_PUBLIC_WHATSAPP_NUMBER.
-  whatsappNumber: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '5548999578323',
-  whatsappDisplay: '(48) 99957-8323',
+  whatsappNumber: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '554899578323',
+  whatsappDisplay: '+55 48 9957-8323',
   instagram: 'https://instagram.com/beckbarbearia',
   address: {
     street: 'Avenida Barriga Verde, 300',

@@ -72,6 +72,10 @@ export const Footer = () => (
       <div className="container flex flex-col items-center justify-between gap-3 py-6 text-xs text-brand-cream/40 sm:flex-row">
         <p>© {new Date().getFullYear()} {SITE.name}. Todos os direitos reservados.</p>
         <div className="flex items-center gap-4 text-[11px]">
+          <Link href="/sobre" className="hover:text-brand-gold transition-colors">
+            Sobre Nós
+          </Link>
+          <span>•</span>
           <Link href="/assinante" className="hover:text-brand-gold transition-colors">
             Portal do Assinante
           </Link>

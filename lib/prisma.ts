@@ -1,18 +1,19 @@
 import { PrismaClient } from '@prisma/client';
 
 /**
- * Singleton do Prisma Client (evita múltiplas conexões no hot reload do Next.js).
+ * Singleton do Prisma Client para a Beck Barbearia.
  *
- * Schema: prisma/schema.prisma (provider MongoDB, ids em UUID).
- * Conexão: DATABASE_URL no .env.
+ * Banco: Supabase PostgreSQL
+ * Conexão: DATABASE_URL no .env.local
  */
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const prisma: PrismaClient =
+export const prisma: PrismaClient & Record<string, any> =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   });
+
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
