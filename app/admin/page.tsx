@@ -22,24 +22,25 @@ import {
   XCircle,
   FileText,
   Sliders,
-  Edit,
   Edit2,
-  Save,
   Check,
   AlertCircle,
-  ArrowRight,
-  Shield,
-  Scissors,
+  Tag,
+  Cake,
+  Phone,
+  Eye,
+  EyeOff,
+  AlertTriangle,
 } from 'lucide-react';
-import type { Appointment, AppointmentStatus, Product, Subscription, SubscriptionStatus } from '@/types';
+import type { Appointment, Product, Subscription, SubscriptionStatus, Barber } from '@/types';
 import {
-  createSubscription,
-  listAppointments,
   listSubscriptions,
-  updateAppointmentStatus,
   updateSubscriptionStatus,
+  createSubscription,
   updateSubscriptionDetails,
   deleteSubscriptionAction,
+  listUpcomingBirthdaysAction,
+  listAppointments,
 } from '@/app/actions/subscriptionActions';
 import {
   listAdminProducts,
@@ -47,25 +48,21 @@ import {
   updateProduct,
   deleteProduct,
   toggleProductStock,
+  toggleProductHomeVisibility,
 } from '@/app/actions/productActions';
-import {
-  getSiteContent,
-  updateSiteContent,
-  getAboutContent,
-  updateAboutContent,
-  SiteContentData,
-  AboutContentData,
-} from '@/app/actions/siteContentActions';
+import { listBarbersAction } from '@/app/actions/barberActions';
+import { loginAdminAction } from '@/app/actions/authActions';
 import { formatBRL } from '@/lib/format';
 import { whatsappLink } from '@/lib/site';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { BrandButton } from '@/components/BrandButton';
 import { BarberAgenda } from '@/components/admin/BarberAgenda';
-import { ImageUploadField } from '@/components/admin/ImageUploadField';
-import { BarbersManager } from '@/components/admin/BarbersManager';
-import { AdminUsersManager } from '@/components/admin/AdminUsersManager';
+import { TeamManager } from '@/components/admin/TeamManager';
+import { SiteCmsManager } from '@/components/admin/SiteCmsManager';
+import { MarketingManager } from '@/components/admin/MarketingManager';
+import { SubscriberModal } from '@/components/admin/SubscriberModal';
+import { ProductModal } from '@/components/admin/ProductModal';
 import { SafeDeleteModal } from '@/components/admin/SafeDeleteModal';
-import { loginAdminAction } from '@/app/actions/authActions';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -75,146 +72,126 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Aba ativa
+  // 6 Abas Mestres Unificadas
   const [activeTab, setActiveTab] = useState<
-    'subscriptions' | 'barbers' | 'admins' | 'appointments' | 'products' | 'home' | 'about'
+    'subscriptions' | 'appointments' | 'team' | 'products' | 'cms' | 'marketing'
   >('subscriptions');
 
-  // Dados
+  // Dados Globais
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [birthdays, setBirthdays] = useState<Subscription[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [siteContent, setSiteContent] = useState<SiteContentData | null>(null);
-  const [aboutContent, setAboutContent] = useState<AboutContentData | null>(null);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
-  // Filtros de Assinaturas
+  // Filtros de Assinantes
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | SubscriptionStatus>('all');
 
-  // Modal Novo Assinante
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newPlan, setNewPlan] = useState<'corte' | 'barba' | 'corte-barba'>('corte-barba');
-  const [creatingSub, setCreatingSub] = useState(false);
-
-  // Modal Editar Assinante (Cliente)
-  const [isEditSubModalOpen, setIsEditSubModalOpen] = useState(false);
-  const [editingSub, setEditingSub] = useState<Subscription | null>(null);
-  const [editSubName, setEditSubName] = useState('');
-  const [editSubPhone, setEditSubPhone] = useState('');
-  const [editSubEmail, setEditSubEmail] = useState('');
-  const [editSubPlan, setEditSubPlan] = useState<'corte' | 'barba' | 'corte-barba'>('corte-barba');
-  const [editSubStatus, setEditSubStatus] = useState<SubscriptionStatus>('active');
-  const [editSubNextBilling, setEditSubNextBilling] = useState('');
-  const [savingSub, setSavingSub] = useState(false);
+  // Modal 4-Grid de Assinante (Criação e Edição)
+  const [isSubModalOpen, setIsSubModalOpen] = useState(false);
+  const [selectedSubForEdit, setSelectedSubForEdit] = useState<Subscription | null>(null);
 
   // SafeDeleteModal para Assinante
   const [isDeleteSubModalOpen, setIsDeleteSubModalOpen] = useState(false);
   const [subToDelete, setSubToDelete] = useState<Subscription | null>(null);
   const [isDeletingSub, setIsDeletingSub] = useState(false);
 
-  // SafeDeleteModal para Produto
-  const [isDeleteProdModalOpen, setIsDeleteProdModalOpen] = useState(false);
-  const [prodToDelete, setProdToDelete] = useState<{ id: string; name: string } | null>(null);
-  const [isDeletingProd, setIsDeletingProd] = useState(false);
-
-  // Modal / Formulário Produto
+  // Modal 4-Grid de Produto (Criação e Edição)
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [editingProductId, setEditingProductId] = useState<string | null>(null);
-  const [prodName, setProdName] = useState('');
-  const [prodCategory, setProdCategory] = useState<'pomada' | 'oleo' | 'balm' | 'kit'>('pomada');
-  const [prodDesc, setProdDesc] = useState('');
-  const [prodPrice, setProdPrice] = useState<string>('45,00');
-  const [prodComparePrice, setProdComparePrice] = useState<string>('');
-  const [prodImage, setProdImage] = useState<string>('/images/product-pomada-matte.webp');
-  const [prodInStock, setProdInStock] = useState(true);
-  const [savingProd, setSavingProd] = useState(false);
+  const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
 
-  // Persistência de autenticação
+  // SafeDeleteModal para Produto
+  const [isDeleteProductModalOpen, setIsDeleteProductModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
+
+  // Autenticação Persistente
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const authQuery = params.get('auth') || params.get('demo');
-      if (authQuery === 'true' || authQuery === 'beck2026') {
-        sessionStorage.setItem('beck_admin_auth', 'true');
-        sessionStorage.setItem('beck_admin_user', 'Henrique');
-        setIsAuthenticated(true);
-        loadAllData();
-        return;
-      }
-      const auth = sessionStorage.getItem('beck_admin_auth');
-      const savedUser = sessionStorage.getItem('beck_admin_user');
-      if (savedUser) setCurrentUser(savedUser);
-      if (auth === 'true') {
-        setIsAuthenticated(true);
-        loadAllData();
+    const auth = localStorage.getItem('beck_admin_auth');
+    if (auth) {
+      try {
+        const parsed = JSON.parse(auth);
+        if (parsed.authenticated) {
+          setIsAuthenticated(true);
+          setCurrentUser(parsed.username || 'Admin');
+        }
+      } catch {
+        localStorage.removeItem('beck_admin_auth');
       }
     }
   }, []);
 
-  const loadAllData = async () => {
-    setLoading(true);
-    try {
-      const [subs, apts, prods, site, about] = await Promise.all([
-        listSubscriptions(),
-        listAppointments(),
-        listAdminProducts(),
-        getSiteContent(),
-        getAboutContent(),
-      ]);
-      setSubscriptions(subs);
-      setAppointments(apts);
-      setProducts(prods);
-      setSiteContent(site);
-      setAboutContent(about);
-    } catch (err) {
-      console.error('Erro ao carregar dados:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsAuthenticating(true);
     setAuthError(null);
+    setIsAuthenticating(true);
+
     try {
       const res = await loginAdminAction(usernameInput, passwordInput);
-      if (res.success) {
+      if (res.ok && res.user) {
         setIsAuthenticated(true);
-        const name = res.user?.name || 'Henrique';
-        setCurrentUser(name);
-        sessionStorage.setItem('beck_admin_auth', 'true');
-        sessionStorage.setItem('beck_admin_user', name);
-        setPasswordInput('');
-        loadAllData();
+        setCurrentUser(res.user.name || res.user.username);
+        localStorage.setItem(
+          'beck_admin_auth',
+          JSON.stringify({ authenticated: true, username: res.user.username })
+        );
       } else {
-        setAuthError(res.error || 'Credenciais inválidas. Tente novamente.');
+        setAuthError(res.error || 'Credenciais inválidas.');
       }
     } catch {
-      setAuthError('Erro ao validar credenciais. Tente novamente.');
+      setAuthError('Falha na comunicação com o servidor.');
     } finally {
       setIsAuthenticating(false);
     }
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('beck_admin_auth');
     setIsAuthenticated(false);
-    sessionStorage.removeItem('beck_admin_auth');
-    sessionStorage.removeItem('beck_admin_user');
+    setUsernameInput('');
     setPasswordInput('');
   };
+
+  // Carregar Dados Mestres
+  const loadMasterData = async () => {
+    setLoading(true);
+    try {
+      const [subs, apts, prods, barbs, bdays] = await Promise.all([
+        listSubscriptions(),
+        listAppointments(),
+        listAdminProducts(),
+        listBarbersAction(),
+        listUpcomingBirthdaysAction(),
+      ]);
+      setSubscriptions(subs);
+      setAppointments(apts);
+      setProducts(prods);
+      setBarbers(barbs);
+      setBirthdays(bdays);
+    } catch (err) {
+      console.error('Erro ao carregar dados do admin:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadMasterData();
+    }
+  }, [isAuthenticated]);
 
   const notifySuccess = (msg: string) => {
     setSaveSuccess(msg);
     setTimeout(() => setSaveSuccess(null), 4000);
   };
 
-  // --- AÇÕES DE ASSINATURA ---
+  // =========================================================
+  // GESTÃO DE ASSINANTES & CLIENTES
+  // =========================================================
   const activeSubs = subscriptions.filter((s) => s.status === 'active');
   const totalMRR = activeSubs.reduce((acc, curr) => acc + curr.priceInCents, 0);
 
@@ -230,92 +207,64 @@ export default function AdminPage() {
   const handleStatusChange = async (id: string, newStatus: SubscriptionStatus) => {
     await updateSubscriptionStatus(id, newStatus);
     setSubscriptions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s)),
+      prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s))
     );
-    notifySuccess('Status da assinatura atualizado no Supabase.');
+    notifySuccess('Status da assinatura atualizado.');
   };
 
-  const handleCreateSubscription = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCreatingSub(true);
+  const handleOpenNewSub = () => {
+    setSelectedSubForEdit(null);
+    setIsSubModalOpen(true);
+  };
+
+  const handleOpenEditSub = (sub: Subscription) => {
+    setSelectedSubForEdit(sub);
+    setIsSubModalOpen(true);
+  };
+
+  const handleSaveSubscriber = async (data: any) => {
     const planPrices = { corte: 9990, barba: 8990, 'corte-barba': 15990 };
     const planNames = { corte: 'Cabelo', barba: 'Barba', 'corte-barba': 'Corte + Barba' };
 
-    try {
-      const created = await createSubscription({
-        customerName: newName,
-        customerPhone: newPhone,
-        customerEmail: newEmail,
-        planSlug: newPlan,
-        planName: planNames[newPlan],
-        priceInCents: planPrices[newPlan],
+    if (selectedSubForEdit) {
+      const res = await updateSubscriptionDetails(selectedSubForEdit.id, {
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail,
+        planSlug: data.planSlug,
+        status: data.status,
+        nextBillingDate: data.nextBillingDate,
+        birthDate: data.birthDate,
+        notes: data.notes,
+        preferredBarberId: data.preferredBarberId,
       });
-
-      setSubscriptions((prev) => [created, ...prev]);
-      setIsModalOpen(false);
-      setNewName('');
-      setNewPhone('');
-      setNewEmail('');
-      notifySuccess('Assinante cadastrado com sucesso.');
-    } catch {
-      alert('Erro ao cadastrar assinante');
-    } finally {
-      setCreatingSub(false);
-    }
-  };
-
-  // --- AÇÕES DE EDIÇÃO E EXCLUSÃO SEGURA DE CLIENTES / ASSINANTES ---
-  const handleOpenEditSub = (sub: Subscription) => {
-    setEditingSub(sub);
-    setEditSubName(sub.customerName);
-    setEditSubPhone(sub.customerPhone);
-    setEditSubEmail(sub.customerEmail);
-    setEditSubPlan(sub.planSlug as any);
-    setEditSubStatus(sub.status);
-    setEditSubNextBilling(sub.nextBillingDate);
-    setIsEditSubModalOpen(true);
-  };
-
-  const handleSaveEditSub = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingSub) return;
-    setSavingSub(true);
-
-    try {
-      const res = await updateSubscriptionDetails(editingSub.id, {
-        customerName: editSubName,
-        customerPhone: editSubPhone,
-        customerEmail: editSubEmail,
-        planSlug: editSubPlan,
-        status: editSubStatus,
-        nextBillingDate: editSubNextBilling,
-      });
-
-      if (res.ok) {
+      if (res.ok && res.subscription) {
         setSubscriptions((prev) =>
-          prev.map((s) =>
-            s.id === editingSub.id
-              ? {
-                  ...s,
-                  customerName: editSubName,
-                  customerPhone: editSubPhone,
-                  customerEmail: editSubEmail,
-                  planSlug: editSubPlan,
-                  status: editSubStatus,
-                  nextBillingDate: editSubNextBilling,
-                }
-              : s
-          )
+          prev.map((s) => (s.id === selectedSubForEdit.id ? res.subscription! : s))
         );
-        setIsEditSubModalOpen(false);
-        notifySuccess(`Dados de "${editSubName}" atualizados com sucesso.`);
-      } else {
-        alert(res.error || 'Erro ao atualizar dados do cliente.');
+        notifySuccess('Assinante atualizado com sucesso.');
+        return { ok: true };
       }
-    } catch {
-      alert('Falha ao comunicar com o servidor.');
-    } finally {
-      setSavingSub(false);
+      return { ok: false, error: res.error };
+    } else {
+      try {
+        const created = await createSubscription({
+          customerName: data.customerName,
+          customerPhone: data.customerPhone,
+          customerEmail: data.customerEmail,
+          planSlug: data.planSlug,
+          planName: planNames[data.planSlug as 'corte' | 'barba' | 'corte-barba'],
+          priceInCents: planPrices[data.planSlug as 'corte' | 'barba' | 'corte-barba'],
+          birthDate: data.birthDate,
+          notes: data.notes,
+          preferredBarberId: data.preferredBarberId,
+        });
+        setSubscriptions((prev) => [created, ...prev]);
+        notifySuccess('Novo assinante cadastrado.');
+        return { ok: true };
+      } catch (err: any) {
+        return { ok: false, error: err?.message || 'Erro ao cadastrar.' };
+      }
     }
   };
 
@@ -327,182 +276,98 @@ export default function AdminPage() {
   const handleConfirmDeleteSub = async () => {
     if (!subToDelete) return;
     setIsDeletingSub(true);
-
     try {
       const res = await deleteSubscriptionAction(subToDelete.id);
       if (res.ok) {
         setSubscriptions((prev) => prev.filter((s) => s.id !== subToDelete.id));
-        setIsDeleteSubModalOpen(false);
-        notifySuccess(`Assinatura de "${subToDelete.customerName}" excluída com sucesso.`);
-      } else {
-        alert(res.error || 'Erro ao excluir assinatura.');
+        notifySuccess('Assinante removido com sucesso.');
       }
     } catch {
-      alert('Falha ao excluir assinatura no banco de dados.');
+      notifySuccess('Erro ao excluir assinante.');
     } finally {
       setIsDeletingSub(false);
+      setIsDeleteSubModalOpen(false);
       setSubToDelete(null);
     }
   };
 
-  // --- AÇÕES DE EXCLUSÃO SEGURA DE PRODUTOS ---
-  const handleOpenDeleteProduct = (prod: { id: string; name: string }) => {
-    setProdToDelete(prod);
-    setIsDeleteProdModalOpen(true);
-  };
-
-  const handleConfirmDeleteProduct = async () => {
-    if (!prodToDelete) return;
-    setIsDeletingProd(true);
-
-    try {
-      await deleteProduct(prodToDelete.id);
-      setProducts((prev) => prev.filter((p) => p.id !== prodToDelete.id));
-      setIsDeleteProdModalOpen(false);
-      notifySuccess(`Produto "${prodToDelete.name}" removido com sucesso.`);
-    } catch {
-      alert('Erro ao excluir produto.');
-    } finally {
-      setIsDeletingProd(false);
-      setProdToDelete(null);
-    }
-  };
-
-  // --- AÇÕES DE PRODUTOS ---
+  // =========================================================
+  // GESTÃO DE PRODUTOS & ESTOQUE
+  // =========================================================
   const handleOpenNewProduct = () => {
-    setEditingProductId(null);
-    setProdName('');
-    setProdCategory('pomada');
-    setProdDesc('');
-    setProdPrice('45,00');
-    setProdComparePrice('');
-    setProdImage('/images/product-pomada-matte.webp');
-    setProdInStock(true);
+    setSelectedProductForEdit(null);
     setIsProductModalOpen(true);
   };
 
   const handleOpenEditProduct = (prod: Product) => {
-    setEditingProductId(prod.id);
-    setProdName(prod.name);
-    setProdCategory(prod.category);
-    setProdDesc(prod.description);
-    setProdPrice((prod.priceInCents / 100).toFixed(2).replace('.', ','));
-    setProdComparePrice(
-      prod.compareAtPriceInCents
-        ? (prod.compareAtPriceInCents / 100).toFixed(2).replace('.', ',')
-        : '',
-    );
-    setProdImage(prod.imageUrl);
-    setProdInStock(prod.inStock);
+    setSelectedProductForEdit(prod);
     setIsProductModalOpen(true);
   };
 
-  const handleSaveProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingProd(true);
-
-    const priceCents = Math.round(parseFloat(prodPrice.replace(',', '.')) * 100);
-    const compareCents = prodComparePrice
-      ? Math.round(parseFloat(prodComparePrice.replace(',', '.')) * 100)
-      : null;
-
-    try {
-      if (editingProductId) {
-        await updateProduct(editingProductId, {
-          name: prodName,
-          category: prodCategory,
-          description: prodDesc,
-          priceInCents: priceCents,
-          compareAtPriceInCents: compareCents,
-          imageUrl: prodImage,
-          inStock: prodInStock,
-        });
-        notifySuccess('Produto atualizado com sucesso.');
-      } else {
-        await createProduct({
-          name: prodName,
-          category: prodCategory,
-          description: prodDesc,
-          priceInCents: priceCents,
-          compareAtPriceInCents: compareCents,
-          imageUrl: prodImage,
-          inStock: prodInStock,
-        });
-        notifySuccess('Novo produto adicionado com sucesso.');
+  const handleSaveProduct = async (data: any) => {
+    if (data.id) {
+      const res = await updateProduct(data.id, data);
+      if (res.ok && res.product) {
+        setProducts((prev) => prev.map((p) => (p.id === data.id ? res.product! : p)));
+        notifySuccess('Produto atualizado.');
+        return { ok: true };
       }
-
-      const updatedProds = await listAdminProducts();
-      setProducts(updatedProds);
-      setIsProductModalOpen(false);
-    } catch (err: any) {
-      alert(err?.message || 'Erro ao salvar produto.');
-    } finally {
-      setSavingProd(false);
+      return { ok: false, error: res.error };
+    } else {
+      const res = await createProduct(data);
+      if (res.ok && res.product) {
+        setProducts((prev) => [res.product!, ...prev]);
+        notifySuccess('Produto cadastrado com sucesso.');
+        return { ok: true };
+      }
+      return { ok: false, error: res.error };
     }
   };
 
-  const handleDeleteProduct = async (id: string, name: string) => {
-    if (!confirm(`Deseja realmente excluir o produto "${name}"?`)) return;
-    try {
-      await deleteProduct(id);
-      setProducts((prev) => prev.filter((p) => p.id !== id));
-      notifySuccess('Produto removido com sucesso.');
-    } catch {
-      alert('Erro ao excluir produto.');
+  const handleToggleProductStock = async (id: string, inStock: boolean) => {
+    await toggleProductStock(id, inStock);
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, inStock } : p)));
+    notifySuccess('Status de estoque alterado.');
+  };
+
+  const handleToggleProductVisibility = async (id: string, showOnHome: boolean) => {
+    const res = await toggleProductHomeVisibility(id, showOnHome);
+    if (res.ok) {
+      setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, showOnHome } : p)));
+      notifySuccess(showOnHome ? 'Produto visível na Página Inicial.' : 'Produto ocultado da Página Inicial.');
     }
   };
 
-  const handleToggleStock = async (id: string, currentStock: boolean) => {
-    await toggleProductStock(id, !currentStock);
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, inStock: !currentStock } : p)),
-    );
-    notifySuccess('Estoque atualizado.');
+  const handleOpenDeleteProduct = (prod: Product) => {
+    setProductToDelete(prod);
+    setIsDeleteProductModalOpen(true);
   };
 
-  // --- AÇÕES DE SITE CONTENT (HOME) ---
-  const handleSaveSiteContent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!siteContent) return;
-    setLoading(true);
+  const handleConfirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    setIsDeletingProduct(true);
     try {
-      const res = await updateSiteContent(siteContent);
+      const res = await deleteProduct(productToDelete.id);
       if (res.ok) {
-        notifySuccess('Configurações da Página Inicial salvas no Supabase.');
-      } else {
-        alert(res.error);
+        setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
+        notifySuccess('Produto excluído com sucesso.');
       }
     } catch {
-      alert('Erro ao salvar configurações.');
+      notifySuccess('Erro ao excluir produto.');
     } finally {
-      setLoading(false);
+      setIsDeletingProduct(false);
+      setIsDeleteProductModalOpen(false);
+      setProductToDelete(null);
     }
   };
 
-  // --- AÇÕES DE ABOUT CONTENT (PÁGINA SOBRE) ---
-  const handleSaveAboutContent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aboutContent) return;
-    setLoading(true);
-    try {
-      const res = await updateAboutContent(aboutContent);
-      if (res.ok) {
-        notifySuccess('Conteúdo da Página Sobre salvo no Supabase.');
-      } else {
-        alert(res.error);
-      }
-    } catch {
-      alert('Erro ao salvar Página Sobre.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // TELA DE LOGIN DO ADMIN
+  // =========================================================
+  // TELA DE LOGIN
+  // =========================================================
   if (!isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-brand-black px-4">
-        <div className="w-full max-w-sm rounded border border-white/10 bg-brand-graphite/80 p-8 shadow-2xl backdrop-blur-md">
+      <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A] px-4">
+        <div className="w-full max-w-sm rounded border border-white/15 bg-[#141414] p-8 shadow-2xl">
           <div className="mb-6 text-center">
             <div className="mx-auto mb-3 relative h-16 w-16">
               <Image
@@ -517,13 +382,13 @@ export default function AdminPage() {
               Painel Administrativo
             </h1>
             <p className="mt-1 text-xs text-brand-cream/50">
-              Digite seu usuário e senha para gerenciar a barbearia
+              Digite suas credenciais de acesso seguro
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-[11px] uppercase tracking-wider text-brand-cream/60 mb-1.5 font-medium">
+              <label className="block text-[11px] uppercase tracking-wider text-brand-cream/60 mb-1.5 font-medium font-mono">
                 Usuário
               </label>
               <input
@@ -532,12 +397,12 @@ export default function AdminPage() {
                 onChange={(e) => setUsernameInput(e.target.value)}
                 autoFocus
                 required
-                className="w-full rounded border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
+                className="w-full rounded border border-white/15 bg-black/70 px-4 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] uppercase tracking-wider text-brand-cream/60 mb-1.5 font-medium">
+              <label className="block text-[11px] uppercase tracking-wider text-brand-cream/60 mb-1.5 font-medium font-mono">
                 Senha
               </label>
               <input
@@ -545,24 +410,24 @@ export default function AdminPage() {
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 required
-                className="w-full rounded border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
+                className="w-full rounded border border-white/15 bg-black/70 px-4 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
               />
             </div>
 
             {authError && (
-              <p className="text-center text-xs text-red-400 bg-red-950/40 border border-red-500/20 rounded py-1.5 px-2">
+              <p className="text-center text-xs text-red-400 bg-red-950/60 border border-red-500/30 rounded py-1.5 px-2 font-mono">
                 {authError}
               </p>
             )}
 
-            <BrandButton type="submit" size="full" className="justify-center" disabled={isAuthenticating}>
-              {isAuthenticating ? 'Entrando...' : 'Entrar'}
+            <BrandButton type="submit" size="full" className="justify-center py-2.5 text-xs" disabled={isAuthenticating}>
+              {isAuthenticating ? 'Autenticando...' : 'Acessar Painel'}
             </BrandButton>
           </form>
 
           <div className="mt-6 border-t border-white/10 pt-4 text-center">
-            <Link href="/" className="text-xs text-brand-cream/50 hover:text-brand-gold transition">
-              ← Voltar ao site da barbearia
+            <Link href="/" className="text-xs text-brand-cream/50 hover:text-brand-gold transition font-mono">
+              ← Retornar ao Site Oficial
             </Link>
           </div>
         </div>
@@ -571,68 +436,49 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-black text-brand-cream pb-16">
+    <div className="min-h-screen bg-[#0A0A0A] text-brand-cream pb-16">
       {/* Barra de Notificação Superior */}
       {saveSuccess && (
-        <div className="sticky top-0 z-50 bg-emerald-950/90 border-b border-emerald-500/40 px-4 py-2.5 text-center text-xs text-emerald-300 backdrop-blur-md flex items-center justify-center gap-2">
+        <div className="sticky top-0 z-50 bg-emerald-950/90 border-b border-emerald-500/40 px-4 py-2.5 text-center text-xs text-emerald-300 backdrop-blur-md flex items-center justify-center gap-2 font-mono">
           <Check size={14} className="text-emerald-400" />
           <span>{saveSuccess}</span>
         </div>
       )}
 
-      {/* Header do Painel */}
-      <header className="border-b border-white/10 bg-brand-graphite/60 backdrop-blur-md sticky top-0 z-40">
-        <div className="container flex h-16 items-center justify-between">
+      {/* Cabeçalho Principal */}
+      <header className="border-b border-white/10 bg-[#121212]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="relative h-10 w-12">
+            <div className="relative h-10 w-10">
               <Image
                 src="/images/logo-removebg-preview.png"
                 alt="Beck Barbearia"
                 fill
-                sizes="48px"
+                sizes="40px"
                 className="object-contain"
               />
             </div>
             <div>
-              <h1 className="font-display text-sm font-bold uppercase tracking-wider text-brand-cream">
-                Beck Barbearia — Gestão
+              <h1 className="font-display text-base font-bold uppercase tracking-wider text-brand-cream">
+                Beck Barbearia • Gestão Central
               </h1>
-              <p className="text-[10px] text-brand-cream/50 font-mono">
-                Supabase PostgreSQL • beckbarbearia.com.br
+              <p className="text-[11px] font-mono text-brand-cream/50">
+                Operador autenticado: <strong className="text-brand-gold">{currentUser}</strong>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 border border-white/10 rounded px-2.5 py-1 bg-white/5">
-              <div className="h-5 w-5 rounded-full bg-brand-gold/20 border border-brand-gold/40 flex items-center justify-center text-[10px] text-brand-gold font-bold">
-                {currentUser.charAt(0).toUpperCase()}
-              </div>
-              <span className="text-xs text-brand-cream/80 font-medium">{currentUser}</span>
-            </div>
-
-            <button
-              onClick={loadAllData}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-brand-cream/70 hover:text-brand-gold border border-white/10 rounded bg-white/5 transition"
-              title="Recarregar dados do banco"
-            >
-              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-              <span className="hidden sm:inline">Atualizar</span>
-            </button>
-
             <Link
               href="/"
               target="_blank"
-              className="px-3 py-1.5 text-xs text-brand-cream/70 hover:text-brand-gold border border-white/10 rounded bg-white/5 transition hidden sm:inline"
+              className="text-xs font-mono text-brand-cream/60 hover:text-brand-gold transition px-3 py-1.5 rounded border border-white/10 hover:border-brand-gold/40"
             >
-              Ver Site
+              Visualizar Site ↗
             </Link>
-
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-400 border border-red-500/20 rounded hover:bg-red-950/40 transition"
-              title="Sair da conta"
+              className="text-xs font-mono text-red-400 hover:text-red-300 transition flex items-center gap-1.5 px-3 py-1.5 rounded border border-red-500/20 hover:bg-red-950/30"
             >
               <LogOut size={13} />
               <span>Sair</span>
@@ -640,15 +486,14 @@ export default function AdminPage() {
           </div>
         </div>
 
-
-        {/* Abas de Navegação */}
-        <div className="container flex border-t border-white/5 overflow-x-auto gap-1 py-1.5 scrollbar-none">
+        {/* 6 ABAS MESTRES UNIFICADAS */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto custom-scrollbar border-t border-white/5 pt-1">
           <button
             onClick={() => setActiveTab('subscriptions')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider font-display rounded transition whitespace-nowrap ${
+            className={`px-4 py-3 text-xs font-mono uppercase tracking-wider whitespace-nowrap transition border-b-2 flex items-center gap-2 ${
               activeTab === 'subscriptions'
-                ? 'bg-brand-gold text-brand-black font-bold'
-                : 'text-brand-cream/70 hover:text-brand-gold hover:bg-white/5'
+                ? 'border-brand-gold text-brand-gold font-bold bg-white/5'
+                : 'border-transparent text-brand-cream/60 hover:text-brand-cream hover:bg-white/5'
             }`}
           >
             <Users size={14} />
@@ -656,35 +501,11 @@ export default function AdminPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('barbers')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider font-display rounded transition whitespace-nowrap ${
-              activeTab === 'barbers'
-                ? 'bg-brand-gold text-brand-black font-bold'
-                : 'text-brand-cream/70 hover:text-brand-gold hover:bg-white/5'
-            }`}
-          >
-            <Scissors size={14} />
-            <span>Barbeiros</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('admins')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider font-display rounded transition whitespace-nowrap ${
-              activeTab === 'admins'
-                ? 'bg-brand-gold text-brand-black font-bold'
-                : 'text-brand-cream/70 hover:text-brand-gold hover:bg-white/5'
-            }`}
-          >
-            <Shield size={14} />
-            <span>Administradores</span>
-          </button>
-
-          <button
             onClick={() => setActiveTab('appointments')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider font-display rounded transition whitespace-nowrap ${
+            className={`px-4 py-3 text-xs font-mono uppercase tracking-wider whitespace-nowrap transition border-b-2 flex items-center gap-2 ${
               activeTab === 'appointments'
-                ? 'bg-brand-gold text-brand-black font-bold'
-                : 'text-brand-cream/70 hover:text-brand-gold hover:bg-white/5'
+                ? 'border-brand-gold text-brand-gold font-bold bg-white/5'
+                : 'border-transparent text-brand-cream/60 hover:text-brand-cream hover:bg-white/5'
             }`}
           >
             <Calendar size={14} />
@@ -692,207 +513,270 @@ export default function AdminPage() {
           </button>
 
           <button
+            onClick={() => setActiveTab('team')}
+            className={`px-4 py-3 text-xs font-mono uppercase tracking-wider whitespace-nowrap transition border-b-2 flex items-center gap-2 ${
+              activeTab === 'team'
+                ? 'border-brand-gold text-brand-gold font-bold bg-white/5'
+                : 'border-transparent text-brand-cream/60 hover:text-brand-cream hover:bg-white/5'
+            }`}
+          >
+            <ShieldCheck size={14} />
+            <span>Equipe & Acessos</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('products')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider font-display rounded transition whitespace-nowrap ${
+            className={`px-4 py-3 text-xs font-mono uppercase tracking-wider whitespace-nowrap transition border-b-2 flex items-center gap-2 ${
               activeTab === 'products'
-                ? 'bg-brand-gold text-brand-black font-bold'
-                : 'text-brand-cream/70 hover:text-brand-gold hover:bg-white/5'
+                ? 'border-brand-gold text-brand-gold font-bold bg-white/5'
+                : 'border-transparent text-brand-cream/60 hover:text-brand-cream hover:bg-white/5'
             }`}
           >
             <Package size={14} />
-            <span>Produtos ({products.length})</span>
+            <span>Produtos & Estoque ({products.length})</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('home')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider font-display rounded transition whitespace-nowrap ${
-              activeTab === 'home'
-                ? 'bg-brand-gold text-brand-black font-bold'
-                : 'text-brand-cream/70 hover:text-brand-gold hover:bg-white/5'
-            }`}
-          >
-            <Sliders size={14} />
-            <span>Página Inicial</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('about')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider font-display rounded transition whitespace-nowrap ${
-              activeTab === 'about'
-                ? 'bg-brand-gold text-brand-black font-bold'
-                : 'text-brand-cream/70 hover:text-brand-gold hover:bg-white/5'
+            onClick={() => setActiveTab('cms')}
+            className={`px-4 py-3 text-xs font-mono uppercase tracking-wider whitespace-nowrap transition border-b-2 flex items-center gap-2 ${
+              activeTab === 'cms'
+                ? 'border-brand-gold text-brand-gold font-bold bg-white/5'
+                : 'border-transparent text-brand-cream/60 hover:text-brand-cream hover:bg-white/5'
             }`}
           >
             <FileText size={14} />
-            <span>Página Sobre</span>
+            <span>Conteúdo do Site</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('marketing')}
+            className={`px-4 py-3 text-xs font-mono uppercase tracking-wider whitespace-nowrap transition border-b-2 flex items-center gap-2 ${
+              activeTab === 'marketing'
+                ? 'border-brand-gold text-brand-gold font-bold bg-white/5'
+                : 'border-transparent text-brand-cream/60 hover:text-brand-cream hover:bg-white/5'
+            }`}
+          >
+            <Tag size={14} />
+            <span>Marketing & Cupons</span>
           </button>
         </div>
       </header>
 
-      {/* CONTEÚDO DAS ABAS */}
-      <main className="container pt-8">
+      {/* Conteúdo Principal */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
         {/* ======================================================== */}
-        {/* ABA 1: ASSINATURAS DO CLUBE DA BARBA                     */}
+        {/* ABA 1: CLIENTES & ASSINATURAS (Com Aniversariantes do Mês) */}
         {/* ======================================================== */}
         {activeTab === 'subscriptions' && (
           <div className="space-y-6">
-            {/* Cards de Métricas */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="rounded border border-white/10 bg-brand-graphite/50 p-4">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-cream/50">
-                  Total de Assinantes
-                </span>
-                <p className="mt-1 text-2xl font-bold font-display text-brand-cream">
-                  {subscriptions.length}
-                </p>
-              </div>
-
-              <div className="rounded border border-white/10 bg-brand-graphite/50 p-4">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-cream/50">
+            {/* Cards de Métricas Principais */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded border border-white/10 bg-[#141414]">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-brand-cream/50 block">
                   Assinantes Ativos
                 </span>
-                <p className="mt-1 text-2xl font-bold font-display text-emerald-400">
+                <p className="font-display text-2xl font-bold text-brand-cream mt-1">
                   {activeSubs.length}
                 </p>
+                <span className="text-[11px] font-mono text-emerald-400">
+                  {subscriptions.length > 0
+                    ? `${Math.round((activeSubs.length / subscriptions.length) * 100)}% de retenção`
+                    : '0%'}
+                </span>
               </div>
 
-              <div className="rounded border border-white/10 bg-brand-graphite/50 p-4">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-cream/50">
-                  MRR do Clube
+              <div className="p-4 rounded border border-white/10 bg-[#141414]">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-brand-cream/50 block">
+                  Faturamento Recorrente (MRR)
                 </span>
-                <p className="mt-1 text-2xl font-bold font-display text-brand-gold">
+                <p className="font-display text-2xl font-bold text-brand-gold mt-1">
                   {formatBRL(totalMRR)}
                 </p>
+                <span className="text-[11px] font-mono text-brand-cream/50">
+                  cobranças automáticas mensais
+                </span>
               </div>
 
-              <div className="rounded border border-white/10 bg-brand-graphite/50 p-4">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-cream/50">
-                  Validade do Clube
+              <div className="p-4 rounded border border-white/10 bg-[#141414]">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-brand-cream/50 block">
+                  Aniversariantes no Mês
                 </span>
-                <p className="mt-1 text-sm font-bold font-display text-brand-cream/80">
-                  Segunda a Quarta
+                <p className="font-display text-2xl font-bold text-brand-cream mt-1">
+                  {birthdays.length}
                 </p>
+                <span className="text-[11px] font-mono text-sky-400">
+                  oportunidade de fidelização
+                </span>
               </div>
             </div>
 
-            {/* Ações e Filtros */}
-            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-white/10 pb-4">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <div className="relative w-full sm:w-72">
-                  <Search size={14} className="absolute left-3 top-3 text-white/40" />
-                  <input
-                    type="text"
-                    placeholder="Buscar nome, fone ou e-mail..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/15 rounded text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
+            {/* WIDGET: ANIVERSARIANTES DO MÊS */}
+            {birthdays.length > 0 && (
+              <div className="p-4 rounded border border-brand-gold/30 bg-[#161616] space-y-3">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Cake size={16} className="text-brand-gold" />
+                    <h3 className="font-display text-xs font-bold uppercase text-brand-cream tracking-wide">
+                      Aniversariantes do Mês ({birthdays.length})
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-mono text-brand-gold">
+                    Parabenize via WhatsApp com 1 clique
+                  </span>
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {birthdays.map((sub) => {
+                    const bdayMsg = `Olá ${sub.customerName}! Toda a equipe da Beck Barbearia deseja um feliz aniversário! Para celebrar, preparamos uma cortesia especial para o seu próximo atendimento no clube. Venha tomar um café conosco!`;
+                    const bdayHref = whatsappLink(bdayMsg, sub.customerPhone);
+                    return (
+                      <div
+                        key={sub.id}
+                        className="p-3 rounded bg-black/60 border border-white/10 flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-display text-xs font-bold text-brand-cream truncate">
+                            {sub.customerName}
+                          </p>
+                          <p className="text-[10px] font-mono text-brand-cream/50">
+                            Data: {sub.birthDate} • {sub.planName}
+                          </p>
+                        </div>
+
+                        <a
+                          href={bdayHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[10px] font-mono uppercase tracking-wider flex items-center gap-1 hover:bg-emerald-900 transition shrink-0"
+                          title="Enviar parabéns pelo WhatsApp"
+                        >
+                          <WhatsAppIcon className="h-3 w-3" />
+                          <span>Parabenizar</span>
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Barra de Filtro & Busca */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#141414] p-3 rounded border border-white/10">
+              <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="bg-black/40 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                  className="bg-black/70 border border-white/10 rounded px-3 py-1.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none font-mono"
                 >
-                  <option value="all">Todos os Status</option>
-                  <option value="active">Ativo</option>
-                  <option value="pending">Pendente</option>
-                  <option value="canceled">Cancelado</option>
-                  <option value="past_due">Atrasado</option>
+                  <option value="all">Todos os Status ({subscriptions.length})</option>
+                  <option value="active">Ativos ({activeSubs.length})</option>
+                  <option value="past_due">Atrasados</option>
+                  <option value="canceled">Cancelados</option>
                 </select>
+
+                <button
+                  onClick={handleOpenNewSub}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-gold text-brand-black text-xs font-bold uppercase tracking-wider font-display rounded hover:bg-brand-gold-light transition"
+                >
+                  <Plus size={13} />
+                  <span>Novo Assinante</span>
+                </button>
               </div>
 
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-brand-gold text-brand-black text-xs font-bold uppercase tracking-wider font-display rounded hover:bg-brand-gold-light transition w-full sm:w-auto justify-center"
-              >
-                <Plus size={14} />
-                <span>Novo Assinante</span>
-              </button>
+              <div className="relative w-full sm:w-72">
+                <Search size={13} className="absolute left-3 top-2.5 text-brand-cream/40" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por nome, telefone ou e-mail..."
+                  className="w-full bg-black/70 border border-white/10 rounded pl-8 pr-3 py-1.5 text-xs text-brand-cream placeholder:text-brand-cream/30 focus:border-brand-gold focus:outline-none"
+                />
+              </div>
             </div>
 
             {/* Tabela de Assinantes */}
-            <div className="overflow-x-auto rounded border border-white/10 bg-brand-graphite/40">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-black/40 border-b border-white/10 text-brand-cream/50 uppercase tracking-wider font-display text-[10px]">
+            <div className="overflow-x-auto rounded border border-white/10 bg-[#141414]">
+              <table className="w-full text-left text-xs text-brand-cream">
+                <thead className="bg-black/60 font-mono text-[10px] uppercase text-brand-cream/60 border-b border-white/10">
                   <tr>
-                    <th className="p-3.5">Cliente</th>
-                    <th className="p-3.5">Contato</th>
-                    <th className="p-3.5">Plano</th>
-                    <th className="p-3.5">Valor</th>
-                    <th className="p-3.5">Próx. Cobrança</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5 text-right">Ações</th>
+                    <th className="p-3">Membro / Cliente</th>
+                    <th className="p-3">Plano</th>
+                    <th className="p-3">Valor / Mês</th>
+                    <th className="p-3">Próxima Cobrança</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
-                  {filteredSubscriptions.map((sub) => (
-                    <tr key={sub.id} className="hover:bg-white/[0.02] transition">
-                      <td className="p-3.5 font-medium text-brand-cream">{sub.customerName}</td>
-                      <td className="p-3.5 text-brand-cream/70 font-mono">
-                        <div>{sub.customerPhone}</div>
-                        <div className="text-[10px] text-white/40">{sub.customerEmail}</div>
+                <tbody className="divide-y divide-white/5 font-mono">
+                  {filteredSubscriptions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-brand-cream/40">
+                        Nenhum assinante encontrado para o filtro aplicado.
                       </td>
-                      <td className="p-3.5 font-semibold text-brand-cream">{sub.planName}</td>
-                      <td className="p-3.5 font-mono text-brand-gold font-bold">
-                        {formatBRL(sub.priceInCents)}
-                      </td>
-                      <td className="p-3.5 text-brand-cream/60 font-mono">{sub.nextBillingDate}</td>
-                      <td className="p-3.5">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${
-                            sub.status === 'active'
-                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                              : sub.status === 'pending'
-                                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                                : 'bg-red-500/15 text-red-400 border border-red-500/30'
-                          }`}
-                        >
-                          {sub.status}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditSub(sub)}
-                            className="p-1.5 rounded border border-white/10 hover:border-brand-gold/60 text-brand-cream/80 hover:text-brand-gold transition"
-                            title="Editar Dados do Cliente"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-
+                    </tr>
+                  ) : (
+                    filteredSubscriptions.map((sub) => (
+                      <tr key={sub.id} className="hover:bg-white/5 transition">
+                        <td className="p-3">
+                          <strong className="text-brand-cream font-sans font-semibold block">
+                            {sub.customerName}
+                          </strong>
+                          <span className="text-[11px] text-brand-cream/50 font-mono">
+                            {sub.customerPhone} • {sub.customerEmail}
+                          </span>
+                          {sub.birthDate && (
+                            <span className="text-[10px] text-brand-gold/70 block mt-0.5">
+                              Niver: {sub.birthDate}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <span className="text-brand-cream font-semibold">{sub.planName}</span>
+                        </td>
+                        <td className="p-3 text-brand-gold font-bold">
+                          {formatBRL(sub.priceInCents)}
+                        </td>
+                        <td className="p-3 text-brand-cream/70">
+                          {sub.nextBillingDate}
+                        </td>
+                        <td className="p-3">
                           <select
                             value={sub.status}
-                            onChange={(e) =>
-                              handleStatusChange(sub.id, e.target.value as SubscriptionStatus)
-                            }
-                            className="bg-black/50 border border-white/15 text-brand-cream text-[11px] rounded px-2 py-1 focus:border-brand-gold focus:outline-none"
+                            onChange={(e) => handleStatusChange(sub.id, e.target.value as SubscriptionStatus)}
+                            className={`rounded px-2 py-1 text-[10px] font-mono uppercase font-bold border ${
+                              sub.status === 'active'
+                                ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/40'
+                                : sub.status === 'past_due'
+                                ? 'bg-amber-950/80 text-amber-400 border-amber-500/40'
+                                : 'bg-red-950/80 text-red-400 border-red-500/40'
+                            }`}
                           >
                             <option value="active">Ativo</option>
-                            <option value="pending">Pendente</option>
                             <option value="past_due">Atrasado</option>
                             <option value="canceled">Cancelado</option>
                           </select>
-
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDeleteSub(sub)}
-                            className="p-1.5 rounded border border-red-500/20 text-red-400 hover:bg-red-950/40 hover:border-red-500/50 transition"
-                            title="Excluir Assinatura"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredSubscriptions.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="p-8 text-center text-brand-cream/50">
-                        Nenhum assinante encontrado para os critérios de busca.
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenEditSub(sub)}
+                              className="p-1.5 rounded border border-white/10 hover:border-brand-gold text-brand-cream/70 hover:text-brand-gold transition"
+                              title="Editar Detalhes"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleOpenDeleteSub(sub)}
+                              className="p-1.5 rounded border border-red-500/20 text-red-400 hover:bg-red-950/40 transition"
+                              title="Excluir Assinante"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
@@ -901,851 +785,226 @@ export default function AdminPage() {
         )}
 
         {/* ======================================================== */}
-        {/* ABA: EQUIPE DE BARBEIROS                                 */}
-        {/* ======================================================== */}
-        {activeTab === 'barbers' && (
-          <div>
-            <BarbersManager />
-          </div>
-        )}
-
-        {/* ======================================================== */}
-        {/* ABA: USUÁRIOS ADMINISTRADORES                            */}
-        {/* ======================================================== */}
-        {activeTab === 'admins' && (
-          <div>
-            <AdminUsersManager currentUsername={currentUser} />
-          </div>
-        )}
-
-        {/* ======================================================== */}
-        {/* ABA 2: AGENDA DA BARBEARIA                               */}
+        {/* ABA 2: AGENDA DA BARBEARIA                                */}
         {/* ======================================================== */}
         {activeTab === 'appointments' && (
-          <div>
-            <BarberAgenda
-              initialAppointments={appointments}
-              subscriptions={subscriptions}
-              onAppointmentsChange={(updated) => setAppointments(updated)}
-            />
-          </div>
+          <BarberAgenda
+            initialAppointments={appointments}
+            subscriptions={subscriptions}
+            barbers={barbers}
+            onAppointmentsChange={setAppointments}
+          />
         )}
 
         {/* ======================================================== */}
-        {/* ABA 3: CATÁLOGO DE PRODUTOS                              */}
+        {/* ABA 3: EQUIPE & ACESSOS (Unificada)                       */}
+        {/* ======================================================== */}
+        {activeTab === 'team' && (
+          <TeamManager currentUsername={currentUser} />
+        )}
+
+        {/* ======================================================== */}
+        {/* ABA 4: PRODUTOS & ESTOQUE                                 */}
         {/* ======================================================== */}
         {activeTab === 'products' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
               <div>
-                <h2 className="font-display text-lg font-bold uppercase text-brand-cream">
-                  Catálogo de Produtos
+                <h2 className="font-display text-lg font-bold uppercase text-brand-cream tracking-wide">
+                  Catálogo de Produtos & Controle de Estoque
                 </h2>
                 <p className="text-xs text-brand-cream/50">
-                  Gerencie pomadas, óleos, balms e kits vendidos na barbearia
+                  Gerencie preços, saldo em estoque físico e visibilidade na Landing Page
                 </p>
               </div>
 
               <button
                 onClick={handleOpenNewProduct}
-                className="flex items-center gap-2 px-4 py-2 bg-brand-gold text-brand-black text-xs font-bold uppercase tracking-wider font-display rounded hover:bg-brand-gold-light transition"
+                className="flex items-center gap-1.5 px-3 py-2 bg-brand-gold text-brand-black text-xs font-bold uppercase tracking-wider font-display rounded hover:bg-brand-gold-light transition"
               >
                 <Plus size={14} />
                 <span>Novo Produto</span>
               </button>
             </div>
 
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {products.map((prod) => (
-                <div
-                  key={prod.id}
-                  className="rounded border border-white/10 bg-brand-graphite/40 overflow-hidden flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="relative aspect-square w-full bg-black/40 border-b border-white/5">
-                      <Image
-                        src={prod.imageUrl}
-                        alt={prod.name}
-                        fill
-                        sizes="(max-width: 640px) 100vw, 300px"
-                        className="object-cover"
-                      />
-                      <span
-                        className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
-                          prod.inStock
-                            ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/40'
-                            : 'bg-red-950/80 text-red-400 border border-red-500/40'
-                        }`}
-                      >
-                        {prod.inStock ? 'Em Estoque' : 'Esgotado'}
-                      </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {products.map((prod) => {
+                const isLowStock =
+                  prod.stockQuantity !== undefined &&
+                  prod.minStockAlert !== undefined &&
+                  prod.stockQuantity <= prod.minStockAlert;
+
+                return (
+                  <div
+                    key={prod.id}
+                    className="rounded border border-white/10 bg-[#141414] overflow-hidden flex flex-col justify-between hover:border-brand-gold/40 transition"
+                  >
+                    <div>
+                      {/* Foto */}
+                      <div className="relative aspect-square w-full bg-black/60 border-b border-white/10">
+                        <Image
+                          src={prod.imageUrl}
+                          alt={prod.name}
+                          fill
+                          sizes="(max-width: 640px) 100vw, 300px"
+                          className="object-cover"
+                        />
+
+                        {/* Badges Flutuantes */}
+                        <div className="absolute top-3 left-3 flex flex-col gap-1">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                              prod.inStock
+                                ? 'bg-emerald-950/90 text-emerald-400 border border-emerald-500/40'
+                                : 'bg-red-950/90 text-red-400 border border-red-500/40'
+                            }`}
+                          >
+                            {prod.inStock ? `${prod.stockQuantity ?? 10} un. em estoque` : 'Esgotado'}
+                          </span>
+
+                          {isLowStock && prod.inStock && (
+                            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-amber-950/90 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                              <AlertTriangle size={10} />
+                              <span>Estoque Baixo</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Visibilidade na Home */}
+                        <div className="absolute top-3 right-3">
+                          <button
+                            onClick={() => handleToggleProductVisibility(prod.id, !(prod.showOnHome ?? true))}
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase flex items-center gap-1 transition ${
+                              prod.showOnHome !== false
+                                ? 'bg-black/80 text-brand-gold border border-brand-gold/40'
+                                : 'bg-black/80 text-zinc-400 border border-white/10'
+                            }`}
+                            title={prod.showOnHome !== false ? 'Visível na Home' : 'Oculto na Home'}
+                          >
+                            {prod.showOnHome !== false ? <Eye size={11} /> : <EyeOff size={11} />}
+                            <span>{prod.showOnHome !== false ? 'Na Home' : 'Oculto'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Informações */}
+                      <div className="p-4 space-y-2">
+                        <span className="text-[10px] font-mono text-brand-gold uppercase tracking-wider">
+                          {prod.category}
+                        </span>
+                        <h3 className="font-display text-sm font-bold text-brand-cream leading-snug">
+                          {prod.name}
+                        </h3>
+                        <p className="text-xs text-brand-cream/60 line-clamp-2 leading-relaxed">
+                          {prod.description}
+                        </p>
+
+                        <div className="pt-2 flex items-baseline gap-2">
+                          <span className="font-display text-base font-bold text-brand-gold">
+                            {formatBRL(prod.priceInCents)}
+                          </span>
+                          {prod.compareAtPriceInCents && (
+                            <span className="text-xs text-brand-cream/40 line-through font-mono">
+                              {formatBRL(prod.compareAtPriceInCents)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="p-4 space-y-2">
-                      <span className="text-[10px] font-mono text-brand-gold uppercase tracking-wider">
-                        {prod.category}
-                      </span>
-                      <h3 className="font-display text-sm font-bold text-brand-cream leading-snug">
-                        {prod.name}
-                      </h3>
-                      <p className="text-xs text-brand-cream/60 line-clamp-2">{prod.description}</p>
-                      <div className="pt-2 flex items-baseline gap-2">
-                        <span className="font-display text-base font-bold text-brand-gold">
-                          {formatBRL(prod.priceInCents)}
-                        </span>
-                        {prod.compareAtPriceInCents && (
-                          <span className="text-xs text-brand-cream/40 line-through font-mono">
-                            {formatBRL(prod.compareAtPriceInCents)}
-                          </span>
-                        )}
+                    {/* Rodapé de Ações */}
+                    <div className="p-4 border-t border-white/5 flex items-center justify-between gap-2 bg-black/40">
+                      <button
+                        onClick={() => handleToggleProductStock(prod.id, !prod.inStock)}
+                        className="text-[11px] font-mono text-brand-cream/70 hover:text-brand-gold underline"
+                      >
+                        {prod.inStock ? 'Marcar Esgotado' : 'Marcar Em Estoque'}
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleOpenEditProduct(prod)}
+                          className="p-1.5 rounded border border-white/10 hover:border-brand-gold text-brand-cream/80 hover:text-brand-gold transition"
+                          title="Editar Produto"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenDeleteProduct(prod)}
+                          className="p-1.5 rounded border border-red-500/20 text-red-400 hover:bg-red-950/40 transition"
+                          title="Excluir Produto"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
                   </div>
-
-                  <div className="p-4 border-t border-white/5 flex items-center justify-between gap-2 bg-black/20">
-                    <button
-                      onClick={() => handleToggleStock(prod.id, prod.inStock)}
-                      className="text-[11px] text-brand-cream/70 hover:text-brand-gold underline"
-                    >
-                      {prod.inStock ? 'Marcar Esgotado' : 'Marcar Em Estoque'}
-                    </button>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleOpenEditProduct(prod)}
-                        className="p-1.5 rounded border border-white/10 hover:border-brand-gold/60 text-brand-cream/80 hover:text-brand-gold transition"
-                        title="Editar Produto"
-                      >
-                        <Edit size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleOpenDeleteProduct(prod)}
-                        className="p-1.5 rounded border border-red-500/20 text-red-400 hover:bg-red-950/40 transition"
-                        title="Excluir Produto"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
         {/* ======================================================== */}
-        {/* ABA 4: PÁGINA INICIAL (HERO, SLOGANS, CONTATO, HORÁRIOS) */}
+        {/* ABA 5: CONTEÚDO DO SITE (Unificada Home + História)      */}
         {/* ======================================================== */}
-        {activeTab === 'home' && siteContent && (
-          <form onSubmit={handleSaveSiteContent} className="max-w-3xl space-y-8">
-            <div className="border-b border-white/10 pb-4 flex items-center justify-between">
-              <div>
-                <h2 className="font-display text-lg font-bold uppercase text-brand-cream">
-                  Configurações da Página Inicial
-                </h2>
-                <p className="text-xs text-brand-cream/50">
-                  Edite textos, slogans, foto de fundo e informações de contato
-                </p>
-              </div>
-              <BrandButton type="submit" size="sm" disabled={loading}>
-                <Save size={14} className="mr-1.5" />
-                Salvar Alterações
-              </BrandButton>
-            </div>
-
-            {/* Hero Section */}
-            <div className="rounded border border-white/10 bg-brand-graphite/40 p-6 space-y-5">
-              <h3 className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">
-                1. Hero / Destaque Principal
-              </h3>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  Título Principal
-                </label>
-                <input
-                  type="text"
-                  value={siteContent.heroTitle}
-                  onChange={(e) => setSiteContent({ ...siteContent, heroTitle: e.target.value })}
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  Subtítulo / Slogan de Destaque
-                </label>
-                <input
-                  type="text"
-                  value={siteContent.heroSubtitle}
-                  onChange={(e) => setSiteContent({ ...siteContent, heroSubtitle: e.target.value })}
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  Slogan Secundário (Hero Slogan)
-                </label>
-                <input
-                  type="text"
-                  value={siteContent.heroSlogan}
-                  onChange={(e) => setSiteContent({ ...siteContent, heroSlogan: e.target.value })}
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              {/* Upload de Imagem de Fundo (Sem URL text input!) */}
-              <ImageUploadField
-                label="Foto de Fundo do Hero (Banner Principal)"
-                value={siteContent.heroImage}
-                onChange={(url) => setSiteContent({ ...siteContent, heroImage: url })}
-                aspectRatio="banner"
-                helpText="Envie uma imagem de alta resolução (preferencialmente 1920x1080 em formato WEBP ou JPG)."
-              />
-            </div>
-
-            {/* Informações de Contato e Endereço */}
-            <div className="rounded border border-white/10 bg-brand-graphite/40 p-6 space-y-5">
-              <h3 className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">
-                2. Contato & Localização
-              </h3>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                    WhatsApp (Apenas Números)
-                  </label>
-                  <input
-                    type="text"
-                    value={siteContent.whatsappNumber}
-                    onChange={(e) =>
-                      setSiteContent({ ...siteContent, whatsappNumber: e.target.value })
-                    }
-                    className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                    WhatsApp Exibição Formatada
-                  </label>
-                  <input
-                    type="text"
-                    value={siteContent.whatsappDisplay}
-                    onChange={(e) =>
-                      setSiteContent({ ...siteContent, whatsappDisplay: e.target.value })
-                    }
-                    className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                    Endereço (Rua e Número)
-                  </label>
-                  <input
-                    type="text"
-                    value={siteContent.addressStreet}
-                    onChange={(e) =>
-                      setSiteContent({ ...siteContent, addressStreet: e.target.value })
-                    }
-                    className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-brand-cream/80 mb-1">Bairro</label>
-                  <input
-                    type="text"
-                    value={siteContent.addressDistrict}
-                    onChange={(e) =>
-                      setSiteContent({ ...siteContent, addressDistrict: e.target.value })
-                    }
-                    className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-brand-cream/80 mb-1">Cidade</label>
-                  <input
-                    type="text"
-                    value={siteContent.addressCity}
-                    onChange={(e) => setSiteContent({ ...siteContent, addressCity: e.target.value })}
-                    className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-brand-cream/80 mb-1">Estado</label>
-                  <input
-                    type="text"
-                    value={siteContent.addressState}
-                    onChange={(e) =>
-                      setSiteContent({ ...siteContent, addressState: e.target.value })
-                    }
-                    className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  Link do Perfil no Instagram
-                </label>
-                <input
-                  type="text"
-                  value={siteContent.instagramUrl}
-                  onChange={(e) =>
-                    setSiteContent({ ...siteContent, instagramUrl: e.target.value })
-                  }
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Aviso do Clube */}
-            <div className="rounded border border-white/10 bg-brand-graphite/40 p-6 space-y-4">
-              <h3 className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">
-                3. Aviso de Validade do Clube da Barba
-              </h3>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  Título do Aviso
-                </label>
-                <input
-                  type="text"
-                  value={siteContent.noticeTitle}
-                  onChange={(e) =>
-                    setSiteContent({ ...siteContent, noticeTitle: e.target.value })
-                  }
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  Texto Explicativo
-                </label>
-                <textarea
-                  rows={2}
-                  value={siteContent.noticeText}
-                  onChange={(e) => setSiteContent({ ...siteContent, noticeText: e.target.value })}
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <BrandButton type="submit" disabled={loading}>
-                <Save size={16} className="mr-2" />
-                Salvar Alterações da Página Inicial
-              </BrandButton>
-            </div>
-          </form>
+        {activeTab === 'cms' && (
+          <SiteCmsManager />
         )}
 
         {/* ======================================================== */}
-        {/* ABA 5: PÁGINA SOBRE (/sobre)                             */}
+        {/* ABA 6: MARKETING & CUPONS                                */}
         {/* ======================================================== */}
-        {activeTab === 'about' && aboutContent && (
-          <form onSubmit={handleSaveAboutContent} className="max-w-3xl space-y-8">
-            <div className="border-b border-white/10 pb-4 flex items-center justify-between">
-              <div>
-                <h2 className="font-display text-lg font-bold uppercase text-brand-cream">
-                  Conteúdo da Página Sobre (/sobre)
-                </h2>
-                <p className="text-xs text-brand-cream/50">
-                  Edite a história, manifesto, dados do fundador e galeria do espaço
-                </p>
-              </div>
-              <BrandButton type="submit" size="sm" disabled={loading}>
-                <Save size={14} className="mr-1.5" />
-                Salvar Página Sobre
-              </BrandButton>
-            </div>
-
-            {/* Cabeçalho da Página Sobre */}
-            <div className="rounded border border-white/10 bg-brand-graphite/40 p-6 space-y-4">
-              <h3 className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">
-                1. Títulos Principais
-              </h3>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  Título da Página
-                </label>
-                <input
-                  type="text"
-                  value={aboutContent.title}
-                  onChange={(e) => setAboutContent({ ...aboutContent, title: e.target.value })}
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  Subtítulo / Chamada
-                </label>
-                <textarea
-                  rows={2}
-                  value={aboutContent.subtitle}
-                  onChange={(e) => setAboutContent({ ...aboutContent, subtitle: e.target.value })}
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* História e Manifesto */}
-            <div className="rounded border border-white/10 bg-brand-graphite/40 p-6 space-y-4">
-              <h3 className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">
-                2. História & Manifesto
-              </h3>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  História da Barbearia (Separe parágrafos com linha em branco)
-                </label>
-                <textarea
-                  rows={6}
-                  value={aboutContent.storyText}
-                  onChange={(e) => setAboutContent({ ...aboutContent, storyText: e.target.value })}
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none leading-relaxed font-light"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  Manifesto do Estilo Tradicional
-                </label>
-                <textarea
-                  rows={3}
-                  value={aboutContent.manifestoText}
-                  onChange={(e) =>
-                    setAboutContent({ ...aboutContent, manifestoText: e.target.value })
-                  }
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Fundador / Mestre Barbeiro */}
-            <div className="rounded border border-white/10 bg-brand-graphite/40 p-6 space-y-5">
-              <h3 className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">
-                3. Perfil do Fundador / Mestre Barbeiro
-              </h3>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-brand-cream/80 mb-1">Nome</label>
-                  <input
-                    type="text"
-                    value={aboutContent.founderName}
-                    onChange={(e) =>
-                      setAboutContent({ ...aboutContent, founderName: e.target.value })
-                    }
-                    className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                    Cargo / Título
-                  </label>
-                  <input
-                    type="text"
-                    value={aboutContent.founderRole}
-                    onChange={(e) =>
-                      setAboutContent({ ...aboutContent, founderRole: e.target.value })
-                    }
-                    className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-brand-cream/80 mb-1">
-                  Biografia do Fundador
-                </label>
-                <textarea
-                  rows={4}
-                  value={aboutContent.founderBio}
-                  onChange={(e) =>
-                    setAboutContent({ ...aboutContent, founderBio: e.target.value })
-                  }
-                  className="w-full bg-black/40 border border-white/15 rounded px-3 py-2 text-sm text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              {/* Upload da Foto do Fundador */}
-              <ImageUploadField
-                label="Foto do Fundador (Retrato)"
-                value={aboutContent.founderPhoto}
-                onChange={(url) => setAboutContent({ ...aboutContent, founderPhoto: url })}
-                aspectRatio="square"
-                helpText="Envie um retrato profissional do barbeiro."
-              />
-            </div>
-
-            <div className="flex justify-end">
-              <BrandButton type="submit" disabled={loading}>
-                <Save size={16} className="mr-2" />
-                Salvar Conteúdo da Página Sobre
-              </BrandButton>
-            </div>
-          </form>
+        {activeTab === 'marketing' && (
+          <MarketingManager />
         )}
       </main>
 
       {/* ======================================================== */}
-      {/* MODAL NOVO ASSINANTE                                     */}
+      {/* MODAIS 4-GRID (SÓLIDOS & COMPACTOS)                      */}
       {/* ======================================================== */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded border border-white/15 bg-brand-graphite p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="font-display text-sm font-bold uppercase tracking-wider text-brand-cream">
-                Cadastrar Novo Assinante
-              </h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-white/40 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
 
-            <form onSubmit={handleCreateSubscription} className="space-y-3">
-              <div>
-                <label className="block text-xs text-brand-cream/80 mb-1">Nome Completo</label>
-                <input
-                  type="text"
-                  required
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Ex: João da Silva"
-                  className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-brand-cream/80 mb-1">WhatsApp / Telefone</label>
-                <input
-                  type="text"
-                  required
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="48999999999"
-                  className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-brand-cream/80 mb-1">E-mail</label>
-                <input
-                  type="email"
-                  required
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="cliente@gmail.com"
-                  className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-brand-cream/80 mb-1">Plano do Clube</label>
-                <select
-                  value={newPlan}
-                  onChange={(e) => setNewPlan(e.target.value as any)}
-                  className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                >
-                  <option value="corte-barba">Corte + Barba — R$ 159,90/mês</option>
-                  <option value="corte">Cabelo — R$ 99,90/mês</option>
-                  <option value="barba">Barba — R$ 89,90/mês</option>
-                </select>
-              </div>
-
-              <div className="pt-2 flex gap-2 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-3 py-2 text-xs text-white/60 hover:text-white"
-                >
-                  Cancelar
-                </button>
-                <BrandButton type="submit" size="sm" disabled={creatingSub}>
-                  {creatingSub ? 'Cadastrando...' : 'Confirmar Cadastro'}
-                </BrandButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* MODAL PRODUTO (CRIAR / EDITAR) COM IMAGE UPLOAD FIELD    */}
-      {/* ======================================================== */}
-      {isProductModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm overflow-y-auto py-8">
-          <div className="w-full max-w-lg rounded border border-white/15 bg-brand-graphite p-6 shadow-2xl space-y-4 my-auto">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="font-display text-sm font-bold uppercase tracking-wider text-brand-cream">
-                {editingProductId ? 'Editar Produto' : 'Novo Produto'}
-              </h3>
-              <button
-                onClick={() => setIsProductModalOpen(false)}
-                className="text-white/40 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProduct} className="space-y-4">
-              <div>
-                <label className="block text-xs text-brand-cream/80 mb-1">Nome do Produto</label>
-                <input
-                  type="text"
-                  required
-                  value={prodName}
-                  onChange={(e) => setProdName(e.target.value)}
-                  placeholder="Ex: Pomada Matte Efeito Seco 100g"
-                  className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-brand-cream/80 mb-1">Categoria</label>
-                  <select
-                    value={prodCategory}
-                    onChange={(e) => setProdCategory(e.target.value as any)}
-                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                  >
-                    <option value="pomada">Pomada</option>
-                    <option value="oleo">Óleo</option>
-                    <option value="balm">Balm</option>
-                    <option value="kit">Kit / Shampoo</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2 pt-6">
-                  <input
-                    type="checkbox"
-                    id="prodStock"
-                    checked={prodInStock}
-                    onChange={(e) => setProdInStock(e.target.checked)}
-                    className="rounded border-white/20 bg-black text-brand-gold focus:ring-0 h-4 w-4"
-                  />
-                  <label htmlFor="prodStock" className="text-xs text-brand-cream font-medium">
-                    Em Estoque
-                  </label>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-brand-cream/80 mb-1">Preço de Venda (R$)</label>
-                  <input
-                    type="text"
-                    required
-                    value={prodPrice}
-                    onChange={(e) => setProdPrice(e.target.value)}
-                    placeholder="45,00"
-                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-brand-cream/80 mb-1">
-                    Preço De/Por (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={prodComparePrice}
-                    onChange={(e) => setProdComparePrice(e.target.value)}
-                    placeholder="55,00"
-                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs text-brand-cream/80 mb-1">Descrição do Produto</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={prodDesc}
-                  onChange={(e) => setProdDesc(e.target.value)}
-                  placeholder="Descreva os benefícios, modo de usar e acabamento..."
-                  className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              {/* Upload Real de Imagem (Sem URL text input!) */}
-              <ImageUploadField
-                label="Foto do Produto"
-                value={prodImage}
-                onChange={(url) => setProdImage(url)}
-                aspectRatio="square"
-                helpText="Selecione ou arraste a foto do produto. O upload será enviado diretamente para o Supabase Storage."
-              />
-
-              <div className="pt-2 flex gap-2 justify-end border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setIsProductModalOpen(false)}
-                  className="px-3 py-2 text-xs text-white/60 hover:text-white"
-                >
-                  Cancelar
-                </button>
-                <BrandButton type="submit" size="sm" disabled={savingProd}>
-                  {savingProd ? 'Salvando...' : 'Salvar Produto'}
-                </BrandButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* MODAL EDITAR ASSINANTE (CLIENTE)                         */}
-      {/* ======================================================== */}
-      {isEditSubModalOpen && editingSub && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm overflow-y-auto py-8">
-          <div className="w-full max-w-lg rounded border border-white/15 bg-brand-graphite p-6 shadow-2xl space-y-4 my-auto">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="font-display text-sm font-bold uppercase tracking-wider text-brand-cream">
-                Editar Dados do Assinante
-              </h3>
-              <button
-                onClick={() => setIsEditSubModalOpen(false)}
-                className="text-white/40 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditSub} className="space-y-4">
-              <div>
-                <label className="block text-xs text-brand-cream/80 mb-1">Nome Completo *</label>
-                <input
-                  type="text"
-                  required
-                  value={editSubName}
-                  onChange={(e) => setEditSubName(e.target.value)}
-                  className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-brand-cream/80 mb-1">Telefone (WhatsApp) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editSubPhone}
-                    onChange={(e) => setEditSubPhone(e.target.value)}
-                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-brand-cream/80 mb-1">E-mail</label>
-                  <input
-                    type="email"
-                    value={editSubEmail}
-                    onChange={(e) => setEditSubEmail(e.target.value)}
-                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-brand-cream/80 mb-1">Plano do Clube</label>
-                  <select
-                    value={editSubPlan}
-                    onChange={(e) => setEditSubPlan(e.target.value as any)}
-                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                  >
-                    <option value="corte-barba">Corte + Barba (R$ 159,90)</option>
-                    <option value="corte">Cabelo (R$ 99,90)</option>
-                    <option value="barba">Barba (R$ 89,90)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-brand-cream/80 mb-1">Status da Assinatura</label>
-                  <select
-                    value={editSubStatus}
-                    onChange={(e) => setEditSubStatus(e.target.value as any)}
-                    className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                  >
-                    <option value="active">Ativo</option>
-                    <option value="pending">Pendente</option>
-                    <option value="past_due">Atrasado</option>
-                    <option value="canceled">Cancelado</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs text-brand-cream/80 mb-1">Data de Renovação / Próx. Cobrança</label>
-                <input
-                  type="date"
-                  value={editSubNextBilling}
-                  onChange={(e) => setEditSubNextBilling(e.target.value)}
-                  className="w-full bg-black/50 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-2 justify-end border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setIsEditSubModalOpen(false)}
-                  disabled={savingSub}
-                  className="px-3 py-2 text-xs text-white/60 hover:text-white"
-                >
-                  Cancelar
-                </button>
-                <BrandButton type="submit" size="sm" disabled={savingSub}>
-                  {savingSub ? 'Salvando...' : 'Salvar Alterações'}
-                </BrandButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE EXCLUSÃO SEGURO: ASSINANTE / CLIENTE */}
-      <SafeDeleteModal
-        isOpen={isDeleteSubModalOpen}
-        title="Excluir Assinatura de Cliente"
-        itemName={subToDelete ? `${subToDelete.customerName} (${subToDelete.customerPhone})` : ''}
-        itemType="assinante / cliente"
-        description="Esta ação removerá permanentemente o cadastro do assinante no Supabase PostgreSQL. Agendamentos associados perderão o vínculo com o cliente."
-        confirmText="Confirmar Exclusão"
-        isDeleting={isDeletingSub}
-        onConfirm={handleConfirmDeleteSub}
-        onClose={() => setIsDeleteSubModalOpen(false)}
+      {/* Modal Assinante */}
+      <SubscriberModal
+        isOpen={isSubModalOpen}
+        subscriber={selectedSubForEdit}
+        barbers={barbers}
+        onClose={() => setIsSubModalOpen(false)}
+        onSave={handleSaveSubscriber}
       />
 
-      {/* MODAL DE EXCLUSÃO SEGURO: PRODUTO */}
+      {/* Modal Produto */}
+      <ProductModal
+        isOpen={isProductModalOpen}
+        product={selectedProductForEdit}
+        onClose={() => setIsProductModalOpen(false)}
+        onSave={handleSaveProduct}
+      />
+
+      {/* Modal Seguro de Exclusão de Assinante */}
       <SafeDeleteModal
-        isOpen={isDeleteProdModalOpen}
-        title="Excluir Produto do Catálogo"
-        itemName={prodToDelete?.name || ''}
-        itemType="produto"
-        description="O produto será removido permanentemente da base de dados e não será mais exibido na vitrine do site."
-        confirmText="Confirmar Exclusão"
-        isDeleting={isDeletingProd}
+        isOpen={isDeleteSubModalOpen}
+        itemName={subToDelete?.customerName || ''}
+        itemTypeLabel="o assinante"
+        onClose={() => {
+          setIsDeleteSubModalOpen(false);
+          setSubToDelete(null);
+        }}
+        onConfirm={handleConfirmDeleteSub}
+        loading={isDeletingSub}
+      />
+
+      {/* Modal Seguro de Exclusão de Produto */}
+      <SafeDeleteModal
+        isOpen={isDeleteProductModalOpen}
+        itemName={productToDelete?.name || ''}
+        itemTypeLabel="o produto"
+        onClose={() => {
+          setIsDeleteProductModalOpen(false);
+          setProductToDelete(null);
+        }}
         onConfirm={handleConfirmDeleteProduct}
-        onClose={() => setIsDeleteProdModalOpen(false)}
+        loading={isDeletingProduct}
       />
     </div>
   );

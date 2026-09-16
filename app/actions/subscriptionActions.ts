@@ -17,6 +17,7 @@ export async function listSubscriptions(): Promise<Subscription[]> {
   try {
     const subs = await prisma.subscription.findMany({
       orderBy: { createdAt: 'desc' },
+      include: { preferredBarber: true },
     });
 
     return subs.map((s: any) => ({
@@ -30,6 +31,20 @@ export async function listSubscriptions(): Promise<Subscription[]> {
       status: s.status as SubscriptionStatus,
       startDate: s.startDate,
       nextBillingDate: s.nextBillingDate,
+      birthDate: s.birthDate || null,
+      notes: s.notes || null,
+      preferredBarberId: s.preferredBarberId || null,
+      preferredBarber: s.preferredBarber
+        ? {
+            id: s.preferredBarber.id,
+            name: s.preferredBarber.name,
+            role: s.preferredBarber.role,
+            phone: s.preferredBarber.phone || null,
+            photoUrl: s.preferredBarber.photoUrl || null,
+            active: s.preferredBarber.active,
+            createdAt: s.preferredBarber.createdAt.toISOString(),
+          }
+        : null,
     }));
   } catch (error) {
     console.error('Erro ao listar assinaturas:', error);
@@ -39,19 +54,28 @@ export async function listSubscriptions(): Promise<Subscription[]> {
 
 /**
  * Busca assinatura ativa de um cliente por telefone ou e-mail no PostgreSQL.
+ * Valida estritamente o tamanho do telefone para evitar correspondência vazia.
  */
 export async function findCustomerSubscription(identifier: string): Promise<Subscription | null> {
   try {
     const cleanInput = identifier.trim().toLowerCase();
     const cleanPhone = normalizePhone(identifier);
 
+    const orConditions: any[] = [];
+    if (cleanInput.includes('@')) {
+      orConditions.push({ customerEmail: { equals: cleanInput, mode: 'insensitive' } });
+    }
+    if (cleanPhone.length >= 8) {
+      orConditions.push({ customerPhone: { contains: cleanPhone } });
+    }
+
+    if (orConditions.length === 0) {
+      return null;
+    }
+
     const sub: any = await prisma.subscription.findFirst({
-      where: {
-        OR: [
-          { customerEmail: { equals: cleanInput, mode: 'insensitive' } },
-          { customerPhone: { contains: cleanPhone } },
-        ],
-      },
+      where: { OR: orConditions },
+      include: { preferredBarber: true },
     });
 
     if (!sub) return null;
@@ -67,6 +91,20 @@ export async function findCustomerSubscription(identifier: string): Promise<Subs
       status: sub.status as SubscriptionStatus,
       startDate: sub.startDate,
       nextBillingDate: sub.nextBillingDate,
+      birthDate: sub.birthDate || null,
+      notes: sub.notes || null,
+      preferredBarberId: sub.preferredBarberId || null,
+      preferredBarber: sub.preferredBarber
+        ? {
+            id: sub.preferredBarber.id,
+            name: sub.preferredBarber.name,
+            role: sub.preferredBarber.role,
+            phone: sub.preferredBarber.phone || null,
+            photoUrl: sub.preferredBarber.photoUrl || null,
+            active: sub.preferredBarber.active,
+            createdAt: sub.preferredBarber.createdAt.toISOString(),
+          }
+        : null,
     };
   } catch (error) {
     console.error('Erro ao buscar assinatura:', error);
@@ -85,6 +123,9 @@ export async function createSubscription(data: {
   planName: string;
   priceInCents: number;
   status?: SubscriptionStatus;
+  birthDate?: string;
+  notes?: string;
+  preferredBarberId?: string;
 }): Promise<Subscription> {
   const plan = await prisma.plan.findUnique({
     where: { slug: data.planSlug },
@@ -104,8 +145,12 @@ export async function createSubscription(data: {
       status: data.status ?? 'active',
       startDate: now.toISOString().split('T')[0],
       nextBillingDate: nextMonth.toISOString().split('T')[0],
+      birthDate: data.birthDate?.trim() || null,
+      notes: data.notes?.trim() || null,
+      preferredBarberId: data.preferredBarberId || null,
       planId: plan?.id ?? undefined,
     },
+    include: { preferredBarber: true },
   });
 
   revalidatePath('/admin');
@@ -120,6 +165,9 @@ export async function createSubscription(data: {
     status: newSub.status as SubscriptionStatus,
     startDate: newSub.startDate,
     nextBillingDate: newSub.nextBillingDate,
+    birthDate: newSub.birthDate || null,
+    notes: newSub.notes || null,
+    preferredBarberId: newSub.preferredBarberId || null,
   };
 }
 
@@ -132,6 +180,7 @@ export async function registerCustomerSubscriptionAction(data: {
   customerPhone: string;
   customerEmail?: string;
   planSlug?: 'corte' | 'barba' | 'corte-barba';
+  birthDate?: string;
 }): Promise<{ ok: boolean; subscription?: Subscription; error?: string }> {
   try {
     const rawName = (data.customerName || '').trim();
@@ -175,6 +224,9 @@ export async function registerCustomerSubscriptionAction(data: {
           status: existing.status as SubscriptionStatus,
           startDate: existing.startDate,
           nextBillingDate: existing.nextBillingDate,
+          birthDate: existing.birthDate || null,
+          notes: existing.notes || null,
+          preferredBarberId: existing.preferredBarberId || null,
         },
       };
     }
@@ -187,6 +239,7 @@ export async function registerCustomerSubscriptionAction(data: {
       planName: planInfo.name,
       priceInCents: planInfo.price,
       status: 'active',
+      birthDate: data.birthDate?.trim() || undefined,
     });
 
     return { ok: true, subscription: sub };
@@ -208,8 +261,11 @@ export async function updateSubscriptionDetails(
     planSlug?: 'corte' | 'barba' | 'corte-barba';
     status?: SubscriptionStatus;
     nextBillingDate?: string;
+    birthDate?: string | null;
+    notes?: string | null;
+    preferredBarberId?: string | null;
   }
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; subscription?: Subscription; error?: string }> {
   try {
     const updateData: any = {};
     if (data.customerName?.trim()) updateData.customerName = data.customerName.trim();
@@ -217,6 +273,9 @@ export async function updateSubscriptionDetails(
     if (data.customerEmail?.trim()) updateData.customerEmail = data.customerEmail.trim().toLowerCase();
     if (data.status) updateData.status = data.status;
     if (data.nextBillingDate) updateData.nextBillingDate = data.nextBillingDate;
+    if (data.birthDate !== undefined) updateData.birthDate = data.birthDate ? data.birthDate.trim() : null;
+    if (data.notes !== undefined) updateData.notes = data.notes ? data.notes.trim() : null;
+    if (data.preferredBarberId !== undefined) updateData.preferredBarberId = data.preferredBarberId || null;
 
     if (data.planSlug) {
       updateData.planSlug = data.planSlug;
@@ -231,14 +290,31 @@ export async function updateSubscriptionDetails(
       }
     }
 
-    await prisma.subscription.update({
+    const updated = await prisma.subscription.update({
       where: { id },
       data: updateData,
     });
 
     revalidatePath('/admin');
     revalidatePath('/assinante');
-    return { ok: true };
+    return {
+      ok: true,
+      subscription: {
+        id: updated.id,
+        customerName: updated.customerName,
+        customerPhone: updated.customerPhone,
+        customerEmail: updated.customerEmail,
+        planSlug: updated.planSlug as any,
+        planName: updated.planName,
+        priceInCents: updated.priceInCents,
+        status: updated.status as SubscriptionStatus,
+        startDate: updated.startDate,
+        nextBillingDate: updated.nextBillingDate,
+        birthDate: updated.birthDate,
+        notes: updated.notes,
+        preferredBarberId: updated.preferredBarberId,
+      },
+    };
   } catch (error: any) {
     console.error('Erro ao atualizar assinatura:', error);
     return { ok: false, error: 'Falha ao atualizar dados do cliente.' };
@@ -303,6 +379,7 @@ export async function listAppointments(subscriptionId?: string): Promise<Appoint
       planName: a.planName || undefined,
       serviceType: a.serviceType,
       barberName: a.barberName,
+      barberId: a.barberId || null,
       priceInCents: a.priceInCents,
       durationMinutes: a.durationMinutes,
       date: a.date,
@@ -319,6 +396,7 @@ export async function listAppointments(subscriptionId?: string): Promise<Appoint
 
 /**
  * Cria um novo agendamento do assinante com validação estrita de Segunda a Quarta.
+ * Verifica conflito por cadeira/barbeiro individual em vez de bloquear a barbearia toda.
  */
 export async function bookAppointment(data: {
   subscriptionId: string;
@@ -351,7 +429,7 @@ export async function bookAppointment(data: {
 
     // Validação da data: apenas Segunda (1), Terça (2) ou Quarta (3)
     const [year, month, day] = data.date.split('-').map(Number);
-    const targetDate = new Date(year, month - 1, day);
+    const targetDate = new Date(year, month - 1, day, 12, 0, 0);
 
     if (!isAllowedClubDay(targetDate)) {
       return {
@@ -369,20 +447,54 @@ export async function bookAppointment(data: {
       };
     }
 
-    // Verificar se o horário já está ocupado no PostgreSQL
-    const occupied = await prisma.appointment.findFirst({
-      where: {
-        date: data.date,
-        timeSlot: data.timeSlot,
-        status: { in: ['confirmed', 'in_progress'] },
-      },
-    });
-
-    if (occupied) {
-      return {
-        ok: false,
-        error: 'Este horário acabou de ser reservado por outro cliente. Por favor, escolha outro.',
-      };
+    // Conflito por Barbeiro:
+    if (data.barberId) {
+      const occupied = await prisma.appointment.findFirst({
+        where: {
+          date: data.date,
+          timeSlot: data.timeSlot,
+          barberId: data.barberId,
+          status: { in: ['confirmed', 'in_progress'] },
+        },
+      });
+      if (occupied) {
+        return {
+          ok: false,
+          error: `O barbeiro ${data.barberName || ''} já possui agendamento neste horário. Por favor, escolha outro horário ou barbeiro.`,
+        };
+      }
+    } else if (data.barberName && !data.barberName.includes('Qualquer') && !data.barberName.includes('Primeiro')) {
+      const occupied = await prisma.appointment.findFirst({
+        where: {
+          date: data.date,
+          timeSlot: data.timeSlot,
+          barberName: data.barberName,
+          status: { in: ['confirmed', 'in_progress'] },
+        },
+      });
+      if (occupied) {
+        return {
+          ok: false,
+          error: `O barbeiro ${data.barberName} já possui agendamento neste horário. Por favor, escolha outro horário ou barbeiro.`,
+        };
+      }
+    } else {
+      // Caso "Qualquer Barbeiro": checa se todas as cadeiras ativas estão ocupadas
+      const activeBarbers = await prisma.barber.findMany({ where: { active: true } });
+      const activeCount = Math.max(1, activeBarbers.length);
+      const bookedCount = await prisma.appointment.count({
+        where: {
+          date: data.date,
+          timeSlot: data.timeSlot,
+          status: { in: ['confirmed', 'in_progress'] },
+        },
+      });
+      if (bookedCount >= activeCount) {
+        return {
+          ok: false,
+          error: 'Todos os barbeiros da barbearia estão ocupados neste horário. Por favor, escolha outro.',
+        };
+      }
     }
 
     const newApt = await prisma.appointment.create({
@@ -414,6 +526,7 @@ export async function bookAppointment(data: {
         planName: newApt.planName || undefined,
         serviceType: newApt.serviceType,
         barberName: newApt.barberName,
+        barberId: newApt.barberId || null,
         priceInCents: newApt.priceInCents,
         durationMinutes: newApt.durationMinutes,
         date: newApt.date,
@@ -425,7 +538,7 @@ export async function bookAppointment(data: {
     };
   } catch (error: any) {
     console.error('Erro ao agendar horário:', error);
-    return { ok: false, error: 'Erro interno ao realizar agendamento.' };
+    return { ok: false, error: error?.message || 'Falha ao realizar agendamento.' };
   }
 }
 
@@ -580,3 +693,61 @@ export async function deleteAppointment(id: string): Promise<{ ok: boolean; erro
     return { ok: false, error: 'Falha ao excluir agendamento.' };
   }
 }
+
+/**
+ * Lista assinantes ativos que fazem aniversário no mês atual (para widget do dashboard).
+ */
+export async function listUpcomingBirthdaysAction(): Promise<Subscription[]> {
+  try {
+    const subs = await prisma.subscription.findMany({
+      where: {
+        birthDate: { not: null },
+        status: 'active',
+      },
+      include: { preferredBarber: true },
+    });
+
+    const now = new Date();
+    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+
+    return subs
+      .filter((s: any) => {
+        if (!s.birthDate) return false;
+        const parts = s.birthDate.split('-');
+        if (parts.length >= 2) {
+          return parts[1] === currentMonth;
+        }
+        return false;
+      })
+      .map((s: any) => ({
+        id: s.id,
+        customerName: s.customerName,
+        customerPhone: s.customerPhone ?? '',
+        customerEmail: s.customerEmail,
+        planSlug: s.planSlug as any,
+        planName: s.planName,
+        priceInCents: s.priceInCents,
+        status: s.status as SubscriptionStatus,
+        startDate: s.startDate,
+        nextBillingDate: s.nextBillingDate,
+        birthDate: s.birthDate,
+        notes: s.notes,
+        preferredBarberId: s.preferredBarberId,
+        preferredBarber: s.preferredBarber
+          ? {
+              id: s.preferredBarber.id,
+              name: s.preferredBarber.name,
+              role: s.preferredBarber.role,
+              phone: s.preferredBarber.phone || null,
+              photoUrl: s.preferredBarber.photoUrl || null,
+              active: s.preferredBarber.active,
+              createdAt: s.preferredBarber.createdAt.toISOString(),
+            }
+          : null,
+      }));
+  } catch (error) {
+    console.error('Erro ao listar aniversariantes:', error);
+    return [];
+  }
+}
+

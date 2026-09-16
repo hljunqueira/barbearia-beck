@@ -5,6 +5,7 @@ import { hashPassword, verifyPassword } from '@/lib/auth';
 
 export interface AdminAuthResult {
   success: boolean;
+  ok: boolean;
   user?: {
     id: string;
     name: string;
@@ -26,7 +27,7 @@ export async function loginAdminAction(
     const rawPassword = (passwordInput || '').trim();
 
     if (!rawPassword) {
-      return { success: false, error: 'Digite a senha de acesso.' };
+      return { success: false, ok: false, error: 'Digite a senha de acesso.' };
     }
 
     const normalizedUsername = (rawUsername || 'henrique').toLowerCase();
@@ -57,6 +58,7 @@ export async function loginAdminAction(
       if (isValid) {
         return {
           success: true,
+          ok: true,
           user: {
             id: adminUser.id,
             name: adminUser.name,
@@ -74,6 +76,7 @@ export async function loginAdminAction(
     ) {
       return {
         success: true,
+        ok: true,
         user: {
           id: 'admin-henrique',
           name: 'Henrique',
@@ -85,6 +88,7 @@ export async function loginAdminAction(
 
     return {
       success: false,
+      ok: false,
       error: 'Usuário ou senha incorretos. Verifique os dados.',
     };
   } catch (error) {
@@ -96,6 +100,7 @@ export async function loginAdminAction(
     ) {
       return {
         success: true,
+        ok: true,
         user: {
           id: 'admin-henrique',
           name: 'Henrique',
@@ -107,7 +112,8 @@ export async function loginAdminAction(
 
     return {
       success: false,
-      error: 'Ocorreu um erro ao processar o login. Tente novamente.',
+      ok: false,
+      error: 'Falha na comunicação com o banco de dados Supabase.',
     };
   }
 }

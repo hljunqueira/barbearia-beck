@@ -64,6 +64,9 @@ model Product {
   compareAtPriceInCents Int?
   imageUrl              String
   inStock               Boolean  @default(true)
+  stockQuantity         Int      @default(10)
+  minStockAlert         Int      @default(2)
+  showOnHome            Boolean  @default(true)
   rating                Float    @default(5.0)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -106,16 +109,17 @@ model Plan {
 }
 
 model Barber {
-  id           String        @id @default(uuid())
-  name         String
-  role         String        @default("Barbeiro Profissional")
-  phone        String?
-  photoUrl     String?
-  bio          String?
-  active       Boolean       @default(true)
-  appointments Appointment[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                     String         @id @default(uuid())
+  name                   String
+  role                   String         @default("Barbeiro Profissional")
+  phone                  String?
+  photoUrl               String?
+  bio                    String?
+  active                 Boolean        @default(true)
+  appointments           Appointment[]
+  preferredSubscriptions Subscription[] @relation("PreferredBarber")
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
 }
 
 // -------------------------------------------------------------
@@ -123,21 +127,25 @@ model Barber {
 // -------------------------------------------------------------
 
 model Subscription {
-  id              String        @id @default(uuid())
-  customerName    String
-  customerPhone   String
-  customerEmail   String
-  planSlug        String
-  planName        String
-  priceInCents    Int
-  status          String        @default("active") // active, pending, canceled, past_due
-  startDate       String
-  nextBillingDate String
-  planId          String?
-  plan            Plan?         @relation(fields: [planId], references: [id], onDelete: SetNull)
-  appointments    Appointment[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                String        @id @default(uuid())
+  customerName      String
+  customerPhone     String
+  customerEmail     String
+  planSlug          String
+  planName          String
+  priceInCents      Int
+  status            String        @default("active") // active, pending, canceled, past_due
+  startDate         String
+  nextBillingDate   String
+  birthDate         String?       // YYYY-MM-DD
+  notes             String?
+  preferredBarberId String?
+  preferredBarber   Barber?       @relation("PreferredBarber", fields: [preferredBarberId], references: [id], onDelete: SetNull)
+  planId            String?
+  plan              Plan?         @relation(fields: [planId], references: [id], onDelete: SetNull)
+  appointments      Appointment[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   @@index([customerEmail])
   @@index([customerPhone])
@@ -188,4 +196,44 @@ model AdminUser {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// -------------------------------------------------------------
+// MARKETING, CUPONS E CONFIGURAÇÕES DA AGENDA
+// -------------------------------------------------------------
+
+model Coupon {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  discountType  String   // percentage, fixed
+  discountValue Int      // percent (ex: 15) ou centavos (ex: 2000 para R$ 20)
+  validUntil    String?  // YYYY-MM-DD
+  maxUses       Int?
+  usedCount     Int      @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model PromotionCampaign {
+  id         String   @id @default(uuid())
+  title      String
+  bannerText String
+  couponCode String?
+  active     Boolean  @default(false)
+  startDate  String?
+  endDate    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AgendaSettings {
+  id                  String   @id @default("default")
+  slotIntervalMinutes Int      @default(30)
+  openingTime         String   @default("08:00")
+  closingTime         String   @default("19:30")
+  allowedClubDays     Json     @default("[1, 2, 3]") // Segunda (1), Terça (2), Quarta (3)
+  breakTimes          Json?    // [{ start: "12:00", end: "13:00", label: "Almoço" }]
+  updatedAt           DateTime @updatedAt
+}
+
 

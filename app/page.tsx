@@ -4,20 +4,20 @@ import { CalendarCheck, Coffee, Flame, Scissors, ArrowRight } from 'lucide-react
 import { getPlanRules, getPlans } from '@/app/actions/getPlans';
 import { getServices } from '@/app/actions/getServices';
 import { getProducts } from '@/app/actions/getProducts';
-import { getSiteContent } from '@/app/actions/siteContentActions';
+import { getSiteContent, getAboutContent } from '@/app/actions/siteContentActions';
 import HeroParallax from '@/components/HeroParallax';
+import { PromotionBanner } from '@/components/PromotionBanner';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { ServicesMarquee } from '@/components/ServicesMarquee';
 import { SectionHeading } from '@/components/SectionHeading';
 import { PlanCard } from '@/components/PlanCard';
 import { PlanRules } from '@/components/PlanRules';
-import { ProductCard } from '@/components/ProductCard';
+import { ProductsCatalog } from '@/components/ProductsCatalog';
 import { ReviewsSection } from '@/components/ReviewsSection';
 import { FloatingWhatsApp } from '@/components/FloatingWhatsApp';
 import { ServicePriceList } from '@/components/ServicePriceList';
 import { OpeningHours } from '@/components/OpeningHours';
-import { BrandButton } from '@/components/BrandButton';
 import { SITE } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
@@ -40,7 +40,7 @@ const EXPERIENCE_ITEMS = [
   },
   {
     icon: CalendarCheck,
-    title: 'Ordem de chegada',
+    title: 'Ordem de chegada & Clube',
     text: 'Sem burocracia: chegou, sentou, é seu. E sem fechar ao meio-dia.',
   },
 ] as const;
@@ -50,21 +50,25 @@ const EXPERIENCE_ITEMS = [
  * Conectado 100% ao PostgreSQL Supabase. Zero mocks em memória.
  */
 const App = async () => {
-  const [plans, planRules, services, products, siteContent] = await Promise.all([
+  const [plans, planRules, services, products, siteContent, aboutContent] = await Promise.all([
     getPlans(),
     getPlanRules(),
     getServices(),
     getProducts(),
     getSiteContent(),
+    getAboutContent(),
   ]);
 
   return (
     <>
+      {/* Banner de Campanhas & Cupons de Topo */}
+      <PromotionBanner />
+
       <Navbar />
 
       <main className="relative bg-brand-black text-brand-cream">
-        {/* Hero com parallax e imagem de fundo */}
-        <HeroParallax />
+        {/* Hero com parallax e imagem de fundo dinâmica do CMS */}
+        <HeroParallax bgImage={siteContent?.heroImage} />
 
         {/* Faixa Marquee */}
         <ServicesMarquee />
@@ -79,8 +83,8 @@ const App = async () => {
             <div className="relative">
               <div className="relative aspect-[4/5] overflow-hidden rounded border border-brand-gold/20 shadow-card">
                 <Image
-                  src={siteContent?.heroImage || '/images/hero-bg-2.webp'}
-                  alt="Beck Barbearia — Cadeira clássica e ambiente de respeito"
+                  src={aboutContent?.founderPhoto || '/images/hero-bg-2.webp'}
+                  alt="Beck Barbearia — Tradição e Excelência"
                   fill
                   sizes="(max-width: 1024px) 100vw, 50vw"
                   className="object-cover"
@@ -125,20 +129,63 @@ const App = async () => {
                   </li>
                 ))}
               </ul>
-
-              {/* Link para a Nova Página Sobre */}
-              <div className="mt-10 pt-6 border-t border-white/10 flex items-center gap-4">
-                <Link
-                  href="/sobre"
-                  className="group inline-flex items-center gap-2 font-display text-xs font-bold uppercase tracking-widest text-brand-gold hover:text-brand-cream transition"
-                >
-                  <span>Conheça nossa história completa e manifesto</span>
-                  <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
-                </Link>
-              </div>
             </div>
           </div>
         </section>
+
+        {/* Seção Institucional: História & Barbearia (Integrada) */}
+        {aboutContent && (
+          <section
+            id="sobre"
+            data-testid="about-section"
+            className="relative scroll-mt-20 border-t border-white/5 bg-[#0e0e0e] py-20 lg:py-28"
+          >
+            <div className="container">
+              <div className="max-w-3xl mx-auto text-center space-y-4">
+                <span className="font-mono text-xs uppercase tracking-widest text-brand-gold block font-semibold">
+                  Nossa Identidade &amp; História
+                </span>
+                <h2 className="font-display text-2xl sm:text-4xl font-bold uppercase text-brand-cream leading-tight">
+                  {aboutContent.title || 'Tradição, Navalha & Respeito ao Cavalheiro'}
+                </h2>
+                <p className="text-sm sm:text-base text-brand-cream/70 leading-relaxed font-sans">
+                  {aboutContent.subtitle}
+                </p>
+              </div>
+
+              <div className="mt-12 grid gap-8 md:grid-cols-2 max-w-4xl mx-auto">
+                <div className="p-6 rounded border border-white/10 bg-[#141414] space-y-3">
+                  <h3 className="font-display text-sm font-bold uppercase text-brand-gold tracking-wider">
+                    Como Nascemos
+                  </h3>
+                  <p className="text-xs sm:text-sm text-brand-cream/80 leading-relaxed whitespace-pre-line">
+                    {aboutContent.storyText}
+                  </p>
+                </div>
+
+                <div className="p-6 rounded border border-white/10 bg-[#141414] space-y-3 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-display text-sm font-bold uppercase text-brand-gold tracking-wider">
+                      Nosso Manifesto
+                    </h3>
+                    <p className="text-xs sm:text-sm text-brand-cream/80 leading-relaxed whitespace-pre-line">
+                      {aboutContent.manifestoText}
+                    </p>
+                  </div>
+
+                  <div className="pt-4 border-t border-white/5">
+                    <p className="font-display text-xs font-bold uppercase text-brand-cream">
+                      {aboutContent.founderName}
+                    </p>
+                    <p className="text-[11px] font-mono text-brand-gold">
+                      {aboutContent.founderRole}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Serviços & Horários */}
         <section
@@ -224,10 +271,8 @@ const App = async () => {
               description="Pomadas de alta fixação, óleos nutritivos com fragrâncias nobres e balms para manter seu alinhamento em casa."
             />
 
-            <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
+            <div className="mt-16">
+              <ProductsCatalog products={products} />
             </div>
           </div>
         </section>

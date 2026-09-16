@@ -5,12 +5,14 @@ import { AlertTriangle, Loader2, X } from 'lucide-react';
 
 interface SafeDeleteModalProps {
   isOpen: boolean;
-  title: string;
+  title?: string;
   itemName: string;
   itemType?: string;
+  itemTypeLabel?: string;
   description?: string;
   confirmText?: string;
   isDeleting?: boolean;
+  loading?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }
@@ -21,15 +23,19 @@ interface SafeDeleteModalProps {
  */
 export function SafeDeleteModal({
   isOpen,
-  title,
+  title = 'Confirmar Exclusão Definitiva',
   itemName,
-  itemType = 'registro',
+  itemType,
+  itemTypeLabel,
   description,
   confirmText = 'Excluir Definitivamente',
   isDeleting = false,
+  loading = false,
   onConfirm,
   onClose,
 }: SafeDeleteModalProps) {
+  const effectiveType = itemTypeLabel || itemType || 'o registro';
+  const effectiveDeleting = isDeleting || loading;
   // Fechar com a tecla ESC
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -46,8 +52,8 @@ export function SafeDeleteModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md rounded-xl border border-red-500/30 bg-brand-graphite p-6 shadow-2xl shadow-red-950/20 sm:p-7">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="relative w-full max-w-lg rounded-lg border border-red-500/40 bg-[#141414] p-6 shadow-2xl text-brand-cream sm:p-7">
         {/* Botão Fechar */}
         <button
           type="button"
@@ -76,7 +82,7 @@ export function SafeDeleteModal({
         {/* Corpo com destaque no item */}
         <div className="mt-5 rounded-lg border border-white/5 bg-brand-black/60 p-4">
           <p className="text-xs text-brand-cream/70 leading-relaxed">
-            Você tem certeza que deseja remover o {itemType}:
+            Você tem certeza que deseja remover {effectiveType}:
           </p>
           <p className="mt-1.5 font-display text-sm font-bold text-brand-gold break-words">
             &ldquo;{itemName}&rdquo;
@@ -89,7 +95,7 @@ export function SafeDeleteModal({
         </div>
 
         <p className="mt-3 text-[11px] text-brand-cream/40">
-          ⚠️ Esta ação é irreversível e removerá permanentemente os dados do Supabase.
+          Esta ação é irreversível e removerá permanentemente os dados do Supabase.
         </p>
 
         {/* Ações */}
@@ -97,7 +103,7 @@ export function SafeDeleteModal({
           <button
             type="button"
             onClick={onClose}
-            disabled={isDeleting}
+            disabled={effectiveDeleting}
             className="w-full sm:w-auto px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-brand-cream/70 hover:text-brand-cream hover:bg-white/5 rounded transition disabled:opacity-50"
           >
             Cancelar
@@ -106,10 +112,10 @@ export function SafeDeleteModal({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={isDeleting}
+            disabled={effectiveDeleting}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wider font-display rounded shadow-lg shadow-red-950/40 transition disabled:opacity-50"
           >
-            {isDeleting ? (
+            {effectiveDeleting ? (
               <>
                 <Loader2 size={14} className="animate-spin" />
                 <span>Excluindo...</span>

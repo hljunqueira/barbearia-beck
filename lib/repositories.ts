@@ -84,7 +84,7 @@ export const productsRepository: ProductsRepository = {
       orderBy: { createdAt: 'asc' },
     });
 
-    return products.map((prod) => ({
+    return products.map((prod: any) => ({
       id: prod.id,
       slug: prod.slug,
       name: prod.name,
@@ -94,12 +94,15 @@ export const productsRepository: ProductsRepository = {
       compareAtPriceInCents: prod.compareAtPriceInCents,
       imageUrl: prod.imageUrl,
       inStock: prod.inStock,
+      stockQuantity: prod.stockQuantity ?? 10,
+      minStockAlert: prod.minStockAlert ?? 2,
+      showOnHome: prod.showOnHome ?? true,
       rating: prod.rating,
     }));
   },
 
   async findBySlug(slug) {
-    const prod = await prisma.product.findUnique({
+    const prod: any = await prisma.product.findUnique({
       where: { slug },
     });
     if (!prod) return null;
@@ -114,6 +117,9 @@ export const productsRepository: ProductsRepository = {
       compareAtPriceInCents: prod.compareAtPriceInCents,
       imageUrl: prod.imageUrl,
       inStock: prod.inStock,
+      stockQuantity: prod.stockQuantity ?? 10,
+      minStockAlert: prod.minStockAlert ?? 2,
+      showOnHome: prod.showOnHome ?? true,
       rating: prod.rating,
     };
   },

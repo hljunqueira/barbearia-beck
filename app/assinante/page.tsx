@@ -5,15 +5,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import {
   Calendar,
-  CalendarDays,
   CheckCircle2,
   Clock,
   LogOut,
-  Scissors,
-  ShieldAlert,
   User,
-  UserPlus,
   XCircle,
+  HelpCircle,
+  BookOpen,
 } from 'lucide-react';
 import type { Appointment, Subscription, Barber } from '@/types';
 import {
@@ -28,6 +26,15 @@ import { getTimeSlotsForDay, isAllowedClubDay } from '@/lib/data/subscriptions';
 import { whatsappLink } from '@/lib/site';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { BrandButton } from '@/components/BrandButton';
+import { SubscriberManualModal } from '@/components/SubscriberManualModal';
+
+// Formatação estrita sem problema de timezone
+const formatLocalDate = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function AssinantePage() {
   const [identifier, setIdentifier] = useState('');
@@ -36,12 +43,16 @@ export default function AssinantePage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
+  // Modal do Manual do Assinante
+  const [isManualOpen, setIsManualOpen] = useState(false);
+
   // Modo de Autenticação: Login ou Novo Cadastro
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPlan, setRegPlan] = useState<'corte-barba' | 'corte' | 'barba'>('corte-barba');
+  const [regBirthDate, setRegBirthDate] = useState('');
   const [regLoading, setRegLoading] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
 
@@ -56,13 +67,12 @@ export default function AssinantePage() {
   const [bookingSuccess, setBookingSuccess] = useState<Appointment | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
 
-  // Carregar dados salvos no localStorage ou via query param (?phone=)
+  // Carregar barbeiros ativos e login salvo
   useEffect(() => {
-    // Carregar barbeiros ativos da equipe
     listBarbersAction().then((data) => {
       const activeOnly = data.filter((b) => b.active);
       setBarbers(activeOnly);
-      if (activeOnly.length > 0) {
+      if (activeOnly.length > 0 && !selectedBarber) {
         setSelectedBarber(activeOnly[0].name);
       }
     });
@@ -84,13 +94,18 @@ export default function AssinantePage() {
     try {
       const sub = await findCustomerSubscription(phoneOrEmail);
       if (!sub) {
-        setError('Nenhuma assinatura encontrada com esse telefone ou e-mail. Verifique os dados ou crie seu cadastro ao lado.');
+        setError('Nenhuma assinatura encontrada. Verifique o número ou cadastre-se ao lado.');
         setSubscription(null);
       } else {
         setSubscription(sub);
         localStorage.setItem('beck_subscriber_phone', phoneOrEmail);
         const apts = await listAppointments(sub.id);
         setAppointments(apts);
+
+        // Se o cliente já tem um barbeiro preferido, selecionar
+        if (sub.preferredBarber?.name) {
+          setSelectedBarber(sub.preferredBarber.name);
+        }
       }
     } catch {
       setError('Erro ao verificar assinatura. Tente novamente.');
@@ -109,6 +124,7 @@ export default function AssinantePage() {
         customerPhone: regPhone,
         customerEmail: regEmail.trim() || undefined,
         planSlug: regPlan,
+        birthDate: regBirthDate.trim() || undefined,
       });
 
       if (!res.ok || !res.subscription) {
@@ -132,11 +148,11 @@ export default function AssinantePage() {
     localStorage.removeItem('beck_subscriber_phone');
   };
 
-  // Obter lista dos próximos 14 dias para o calendário
+  // 14 dias futuros usando data local sem timezone shift
   const upcomingDays = Array.from({ length: 14 }).map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i + 1);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = formatLocalDate(d);
     const isAllowed = isAllowedClubDay(d);
     const dayOfWeekName = d.toLocaleDateString('pt-BR', { weekday: 'short' });
     const dayOfMonth = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -144,7 +160,7 @@ export default function AssinantePage() {
     return { date: d, dateStr, isAllowed, dayOfWeekName, dayOfMonth };
   });
 
-  // Slots de horários para a data selecionada
+  // Slots para o dia selecionado
   const availableSlots = selectedDateStr
     ? getTimeSlotsForDay(new Date(selectedDateStr + 'T12:00:00'))
     : [];
@@ -165,7 +181,7 @@ export default function AssinantePage() {
       date: selectedDateStr,
       timeSlot: selectedTimeSlot,
       notes,
-      barberName: selectedBarber || 'Barbeiro da Equipe',
+      barberName: selectedBarber || (barbers[0]?.name || 'Matheus Becker'),
     });
 
     setBookingLoading(false);
@@ -192,32 +208,42 @@ export default function AssinantePage() {
   };
 
   return (
-    <div className="min-h-screen bg-brand-black font-sans text-brand-cream selection:bg-brand-gold selection:text-brand-black">
+    <div className="min-h-screen bg-[#0A0A0A] font-sans text-brand-cream">
       {/* Topo / Header */}
-      <header className="border-b border-white/5 bg-brand-graphite/40 backdrop-blur-md">
-        <div className="container flex h-20 items-center justify-between">
+      <header className="border-b border-white/10 bg-[#121212]">
+        <div className="max-w-6xl mx-auto px-4 flex h-20 items-center justify-between">
           <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
             <Image
               src="/images/logo-removebg-preview.png"
               alt="Beck Barbearia"
-              width={48}
-              height={42}
+              width={44}
+              height={38}
               className="object-contain"
             />
             <div>
               <span className="font-display text-sm font-black uppercase tracking-wider text-brand-cream">
                 Beck Barbearia
               </span>
-              <span className="block text-[10px] font-medium uppercase tracking-widest text-brand-gold">
-                Clube da Barba
+              <span className="block text-[10px] font-mono uppercase tracking-widest text-brand-gold">
+                Portal do Assinante
               </span>
             </div>
           </Link>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Botão Manual do Assinante */}
+            <button
+              type="button"
+              onClick={() => setIsManualOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-brand-gold/40 bg-brand-gold/10 text-brand-gold hover:bg-brand-gold hover:text-brand-black text-xs font-mono uppercase tracking-wider transition"
+            >
+              <BookOpen size={13} />
+              <span>Manual do Clube</span>
+            </button>
+
             <Link
               href="/"
-              className="font-display text-xs uppercase tracking-wider text-brand-cream/60 transition-colors hover:text-brand-gold"
+              className="font-mono text-xs uppercase tracking-wider text-brand-cream/60 transition-colors hover:text-brand-gold hidden sm:inline"
             >
               ← Voltar ao Site
             </Link>
@@ -226,7 +252,7 @@ export default function AssinantePage() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="inline-flex items-center gap-1.5 rounded-sm border border-white/10 bg-brand-black/60 px-3 py-1.5 text-xs text-brand-cream/80 transition-colors hover:border-red-500/50 hover:text-red-400"
+                className="inline-flex items-center gap-1.5 rounded border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-brand-cream/80 transition-colors hover:border-red-500/50 hover:text-red-400 font-mono uppercase"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 <span>Sair</span>
@@ -236,537 +262,457 @@ export default function AssinantePage() {
         </div>
       </header>
 
-      <main className="container py-12 lg:py-16">
-        {/* CASO NÃO ESTEJA AUTENTICADO: TELA DE LOGIN */}
+      <main className="max-w-6xl mx-auto px-4 py-10 sm:py-14">
+        {/* ======================================================== */}
+        {/* CASO NÃO AUTENTICADO: LOGIN OU NOVO CADASTRO            */}
+        {/* ======================================================== */}
         {!subscription ? (
-          <div className="mx-auto max-w-md">
-            <div className="rounded-2xl border border-brand-gold/30 bg-brand-graphite/80 p-6 shadow-card backdrop-blur-md sm:p-9">
-              {/* Alternador de Modo: Login vs Cadastro */}
-              <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-white/10 bg-brand-black/70 p-1 mb-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode('login');
-                    setError(null);
-                    setRegError(null);
-                  }}
-                  className={`flex items-center justify-center gap-1.5 rounded py-2 text-xs font-bold uppercase tracking-wider font-display transition ${
-                    authMode === 'login'
-                      ? 'bg-brand-gold text-brand-black shadow-gold'
-                      : 'text-brand-cream/60 hover:text-brand-cream'
-                  }`}
-                >
-                  <User size={13} />
-                  <span>Já Sou Assinante</span>
-                </button>
+          <div className="max-w-lg mx-auto space-y-6">
+            <div className="text-center space-y-2">
+              <h1 className="font-display text-2xl font-bold uppercase text-brand-cream tracking-wide">
+                Portal do Assinante
+              </h1>
+              <p className="text-xs text-brand-cream/60">
+                Acesse sua conta para agendar horários exclusivos de segunda a quarta-feira
+              </p>
+            </div>
 
+            <div className="p-6 sm:p-8 rounded border border-white/15 bg-[#141414] shadow-2xl space-y-6">
+              {/* Abas Login / Cadastro */}
+              <div className="flex border-b border-white/10 pb-3">
                 <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode('register');
-                    setError(null);
-                    setRegError(null);
-                  }}
-                  className={`flex items-center justify-center gap-1.5 rounded py-2 text-xs font-bold uppercase tracking-wider font-display transition ${
-                    authMode === 'register'
-                      ? 'bg-brand-gold text-brand-black shadow-gold'
-                      : 'text-brand-cream/60 hover:text-brand-cream'
+                  onClick={() => setAuthMode('login')}
+                  className={`flex-1 text-xs font-mono uppercase tracking-wider pb-2 border-b-2 transition ${
+                    authMode === 'login'
+                      ? 'border-brand-gold text-brand-gold font-bold'
+                      : 'border-transparent text-brand-cream/50 hover:text-brand-cream'
                   }`}
                 >
-                  <UserPlus size={13} />
-                  <span>Criar Cadastro</span>
+                  Já sou Assinante
+                </button>
+                <button
+                  onClick={() => setAuthMode('register')}
+                  className={`flex-1 text-xs font-mono uppercase tracking-wider pb-2 border-b-2 transition ${
+                    authMode === 'register'
+                      ? 'border-brand-gold text-brand-gold font-bold'
+                      : 'border-transparent text-brand-cream/50 hover:text-brand-cream'
+                  }`}
+                >
+                  Criar Minha Assinatura
                 </button>
               </div>
 
-              {/* MODO 1: LOGIN SIMPLES */}
-              {authMode === 'login' ? (
-                <div>
-                  <div className="text-center">
-                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-brand-gold/40 bg-brand-black text-brand-gold shadow-gold">
-                      <User className="h-6 w-6" />
-                    </span>
-                    <h1 className="mt-4 font-display text-xl sm:text-2xl font-bold uppercase tracking-wide text-brand-cream">
-                      Área do Assinante
-                    </h1>
-                    <p className="mt-1.5 text-xs leading-relaxed text-brand-cream/70">
-                      Informe o WhatsApp ou e-mail cadastrado para acessar seus agendamentos.
-                    </p>
+              {/* Formulário Login */}
+              {authMode === 'login' && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (identifier.trim()) handleLogin(identifier.trim());
+                  }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                      Telefone com DDD ou E-mail cadastrado
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      placeholder="Ex: 48999999999 ou seu@email.com"
+                      className="w-full bg-black/70 border border-white/15 rounded px-3 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
+                    />
                   </div>
 
                   {error && (
-                    <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-red-500/40 bg-red-950/40 p-3.5 text-xs text-red-200">
-                      <ShieldAlert className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
-                      <span>{error}</span>
+                    <div className="p-3 rounded bg-red-950/80 border border-red-500/40 text-xs text-red-200">
+                      {error}
                     </div>
                   )}
 
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleLogin(identifier);
-                    }}
-                    className="mt-6 space-y-4"
-                  >
+                  <BrandButton type="submit" disabled={loading} size="full" className="py-2.5 text-xs">
+                    {loading ? 'Identificando Assinatura...' : 'Acessar Minha Agenda'}
+                  </BrandButton>
+                </form>
+              )}
+
+              {/* Formulário Cadastro */}
+              {authMode === 'register' && (
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                      Nome Completo *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={regName}
+                      onChange={(e) => setRegName(e.target.value)}
+                      placeholder="Ex: João da Silva"
+                      className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
-                        Telefone (WhatsApp) ou E-mail
+                      <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                        WhatsApp com DDD *
                       </label>
                       <input
                         type="text"
                         required
-                        placeholder="(48) 99123-4567 ou seu@email.com"
-                        value={identifier}
-                        onChange={(e) => setIdentifier(e.target.value)}
-                        className="mt-1.5 w-full rounded-md border border-white/10 bg-brand-black px-4 py-3 text-sm text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        placeholder="48999999999"
+                        className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none"
                       />
                     </div>
 
-                    <BrandButton
-                      type="submit"
-                      variant="gold"
-                      size="full"
-                      disabled={loading || !identifier.trim()}
-                      className="mt-2"
-                    >
-                      {loading ? 'Verificando...' : 'Acessar Meu Painel'}
-                    </BrandButton>
-                  </form>
-
-                  <div className="mt-6 text-center border-t border-white/10 pt-4">
-                    <p className="text-xs text-brand-cream/60">
-                      Primeira vez aqui?{' '}
-                      <button
-                        type="button"
-                        onClick={() => setAuthMode('register')}
-                        className="font-bold text-brand-gold hover:underline"
-                      >
-                        Cadastre-se agora
-                      </button>
-                    </p>
+                    <div>
+                      <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                        Aniversário (Dia/Mês)
+                      </label>
+                      <input
+                        type="text"
+                        value={regBirthDate}
+                        onChange={(e) => setRegBirthDate(e.target.value)}
+                        placeholder="Ex: 15/10"
+                        className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none"
+                      />
+                    </div>
                   </div>
-                </div>
-              ) : (
-                /* MODO 2: NOVO CADASTRO */
-                <div>
-                  <div className="text-center">
-                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-brand-gold/40 bg-brand-black text-brand-gold shadow-gold">
-                      <UserPlus className="h-6 w-6" />
-                    </span>
-                    <h1 className="mt-4 font-display text-xl sm:text-2xl font-bold uppercase tracking-wide text-brand-cream">
-                      Criar Meu Cadastro
-                    </h1>
-                    <p className="mt-1.5 text-xs leading-relaxed text-brand-cream/70">
-                      Cadastre seu nome e telefone para agendar seus horários no Clube da Barba.
-                    </p>
+
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                      E-mail (opcional)
+                    </label>
+                    <input
+                      type="email"
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      placeholder="joao@email.com"
+                      className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                      Plano Escolhido *
+                    </label>
+                    <select
+                      value={regPlan}
+                      onChange={(e) => setRegPlan(e.target.value as any)}
+                      className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                    >
+                      <option value="corte-barba">Corte + Barba Completo (R$ 159,90/mês)</option>
+                      <option value="corte">Corte Ilimitado (R$ 99,90/mês)</option>
+                      <option value="barba">Barboterapia Ilimitada (R$ 89,90/mês)</option>
+                    </select>
                   </div>
 
                   {regError && (
-                    <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-red-500/40 bg-red-950/40 p-3.5 text-xs text-red-200">
-                      <ShieldAlert className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
-                      <span>{regError}</span>
+                    <div className="p-3 rounded bg-red-950/80 border border-red-500/40 text-xs text-red-200">
+                      {regError}
                     </div>
                   )}
 
-                  <form onSubmit={handleRegister} className="mt-6 space-y-3.5">
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
-                        Nome Completo *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Ex: Carlos Eduardo"
-                        value={regName}
-                        onChange={(e) => setRegName(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-sm text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
-                        Telefone (WhatsApp) *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="(48) 99123-4567"
-                        value={regPhone}
-                        onChange={(e) => setRegPhone(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-sm text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
-                        E-mail (Opcional)
-                      </label>
-                      <input
-                        type="email"
-                        placeholder="seu@email.com"
-                        value={regEmail}
-                        onChange={(e) => setRegEmail(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-sm text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-brand-cream/80">
-                        Plano do Clube
-                      </label>
-                      <select
-                        value={regPlan}
-                        onChange={(e) => setRegPlan(e.target.value as any)}
-                        className="mt-1 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
-                      >
-                        <option value="corte-barba">Corte + Barba — R$ 159,90/mês</option>
-                        <option value="corte">Plano Cabelo — R$ 99,90/mês</option>
-                        <option value="barba">Plano Barba — R$ 89,90/mês</option>
-                      </select>
-                    </div>
-
-                    <BrandButton
-                      type="submit"
-                      variant="gold"
-                      size="full"
-                      disabled={regLoading || !regName.trim() || !regPhone.trim()}
-                      className="mt-4"
-                    >
-                      {regLoading ? 'Criando cadastro...' : 'Concluir Cadastro & Acessar'}
-                    </BrandButton>
-                  </form>
-
-                  <div className="mt-6 text-center border-t border-white/10 pt-4">
-                    <p className="text-xs text-brand-cream/60">
-                      Já é cadastrado?{' '}
-                      <button
-                        type="button"
-                        onClick={() => setAuthMode('login')}
-                        className="font-bold text-brand-gold hover:underline"
-                      >
-                        Fazer login
-                      </button>
-                    </p>
-                  </div>
-                </div>
+                  <BrandButton type="submit" disabled={regLoading} size="full" className="py-2.5 text-xs">
+                    {regLoading ? 'Ativando...' : 'Confirmar e Acessar Agenda'}
+                  </BrandButton>
+                </form>
               )}
             </div>
           </div>
         ) : (
-          /* PAINEL DO CLIENTE AUTENTICADO */
-          <div className="space-y-10">
-            {/* Cartão de Identificação do Plano */}
-            <div className="relative overflow-hidden rounded-2xl border border-brand-gold/50 bg-gradient-to-r from-brand-graphite via-brand-black to-brand-graphite p-6 shadow-card sm:p-8">
-              <div className="pointer-events-none absolute right-0 top-0 h-full w-1/3 bg-gold-line opacity-20" />
-
-              <div className="relative flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
-                <div>
-                  <span className="font-display text-[11px] font-bold uppercase tracking-[0.25em] text-brand-gold">
-                    Assinante Clube da Barba
-                  </span>
-                  <h1 className="mt-1 font-display text-2xl font-black uppercase text-brand-cream sm:text-3xl">
-                    Olá, {subscription.customerName}
-                  </h1>
-                  <p className="mt-1 text-xs text-brand-cream/70">
-                    Plano atual: <strong className="text-brand-gold">{subscription.planName}</strong> • Renova em{' '}
-                    {subscription.nextBillingDate}
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-start gap-2 sm:items-end">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 px-3 py-1 text-xs font-bold uppercase text-emerald-400">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                    Assinatura Ativa
-                  </span>
-                  <span className="text-[11px] font-medium text-brand-cream/60">
-                    Contato: {subscription.customerPhone}
-                  </span>
-                </div>
+          /* ======================================================== */
+          /* CLIENTE AUTENTICADO: PAINEL EXECUTIVO                    */
+          /* ======================================================== */
+          <div className="space-y-8">
+            {/* Cartão de Identificação do Membro */}
+            <div className="p-6 rounded border border-brand-gold/30 bg-[#141414] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-mono tracking-widest text-brand-gold uppercase">
+                  Membro Oficial • Clube da Barba
+                </span>
+                <h1 className="font-display text-xl sm:text-2xl font-bold uppercase text-brand-cream mt-0.5">
+                  Olá, {subscription.customerName}
+                </h1>
+                <p className="text-xs text-brand-cream/60 mt-1">
+                  Plano: <strong className="text-brand-gold">{subscription.planName}</strong> • Renova em:{' '}
+                  {subscription.nextBillingDate}
+                </p>
               </div>
 
-              {/* Aviso da Regra de Segunda a Quarta */}
-              <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-gold/30 bg-brand-gold/10 px-4 py-3 text-xs text-brand-cream/90">
-                <Clock className="h-5 w-5 shrink-0 text-brand-gold" />
-                <span>
-                  <strong>Regra do seu plano:</strong> Seus agendamentos são válidos exclusivamente para{' '}
-                  <strong className="text-brand-gold">Segunda, Terça ou Quarta-feira</strong>, garantindo
-                  atendimento de respeito e sem filas.
+              <div className="flex flex-col sm:items-end gap-2">
+                <span className="px-3 py-1 rounded text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 w-fit">
+                  Assinatura Ativa
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setIsManualOpen(true)}
+                  className="text-[11px] font-mono text-brand-gold hover:underline flex items-center gap-1"
+                >
+                  <HelpCircle size={12} />
+                  <span>Consultar Regras do Clube</span>
+                </button>
               </div>
             </div>
 
-            {/* FEEDBACK DE AGENDAMENTO CONCLUÍDO */}
+            {/* Sucesso de Agendamento */}
             {bookingSuccess && (
-              <div className="rounded-xl border border-emerald-500/50 bg-emerald-950/40 p-6 shadow-[0_0_30px_rgba(16,185,129,0.15)] animate-in fade-in">
-                <div className="flex items-start gap-4">
-                  <CheckCircle2 className="h-8 w-8 text-emerald-400 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <h3 className="font-display text-lg font-bold uppercase text-brand-cream">
-                      Horário Agendado com Sucesso!
-                    </h3>
-                    <p className="mt-1 text-sm text-brand-cream/80">
-                      Seu horário está confirmado para{' '}
-                      <strong className="text-brand-gold">
-                        {new Date(bookingSuccess.date + 'T12:00:00').toLocaleDateString('pt-BR', {
-                          weekday: 'long',
-                          day: '2-digit',
-                          month: 'long',
-                        })}
-                      </strong>{' '}
-                      às <strong className="text-brand-gold">{bookingSuccess.timeSlot}</strong>.
-                    </p>
+              <div className="p-5 rounded border border-emerald-500/50 bg-emerald-950/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-display text-sm font-bold uppercase text-brand-cream">
+                    Horário Confirmado com Sucesso!
+                  </h3>
+                  <p className="text-xs text-brand-cream/80 mt-1">
+                    Agendado para <strong className="text-brand-gold">{bookingSuccess.date}</strong> às{' '}
+                    <strong className="text-brand-gold">{bookingSuccess.timeSlot}</strong> com{' '}
+                    <strong className="text-brand-cream">{bookingSuccess.barberName}</strong>.
+                  </p>
+                </div>
 
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <a
-                        href={whatsappLink(
-                          `Olá! Sou o assinante ${subscription.customerName} e acabei de agendar meu horário para ${bookingSuccess.date} às ${bookingSuccess.timeSlot}.`,
-                        )}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 rounded-md bg-[#25D366] px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md transition-transform hover:scale-105"
-                      >
-                        <WhatsAppIcon size={16} className="fill-white" />
-                        <span>Avisar Barbeiro no WhatsApp</span>
-                      </a>
-
-                      <button
-                        type="button"
-                        onClick={() => setBookingSuccess(null)}
-                        className="rounded-md border border-white/20 bg-brand-black/60 px-4 py-2 text-xs font-semibold text-brand-cream/80 hover:text-white"
-                      >
-                        Agendar Outro Horário
-                      </button>
-                    </div>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={whatsappLink(
+                      `Olá! Sou o assinante ${subscription.customerName} e confirmo meu horário no clube para ${bookingSuccess.date} às ${bookingSuccess.timeSlot}.`
+                    )}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider font-mono flex items-center gap-1.5 transition"
+                  >
+                    <WhatsAppIcon size={14} className="fill-white" />
+                    <span>Avisar no WhatsApp</span>
+                  </a>
+                  <button
+                    onClick={() => setBookingSuccess(null)}
+                    className="px-3 py-2 rounded border border-white/10 hover:bg-white/5 text-xs text-brand-cream/70"
+                  >
+                    Novo Agendamento
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* SEÇÃO PRINCIPAL: AGENDAR NOVO HORÁRIO */}
-            <div className="grid gap-10 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <div className="rounded-2xl border border-brand-gold/30 bg-brand-graphite/60 p-6 shadow-card sm:p-8">
-                  <div className="border-b border-white/10 pb-4">
-                    <span className="font-display text-xs font-bold uppercase tracking-[0.2em] text-brand-gold">
-                      Passo a Passo
-                    </span>
-                    <h2 className="mt-1 font-display text-xl font-bold uppercase text-brand-cream">
-                      Agendar Horário na Cadeira
-                    </h2>
+            {/* FLUXO EM 3 PASSOS DE AGENDAMENTO */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 p-6 sm:p-8 rounded border border-white/10 bg-[#141414] space-y-6">
+                <div className="border-b border-white/10 pb-3">
+                  <h2 className="font-display text-base font-bold uppercase text-brand-cream tracking-wide">
+                    Agendar Horário na Barbearia
+                  </h2>
+                  <p className="text-xs text-brand-cream/50 mt-0.5">
+                    Os atendimentos do clube são válidos de segunda a quarta-feira
+                  </p>
+                </div>
+
+                <form onSubmit={handleBook} className="space-y-6">
+                  {/* PASSO 1: ESCOLHA DO BARBEIRO */}
+                  <div>
+                    <label className="block text-xs font-mono uppercase tracking-wider text-brand-gold font-bold mb-2">
+                      1. Escolha o Barbeiro:
+                    </label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {barbers.map((b) => {
+                        const isSelected = selectedBarber === b.name;
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedBarber(b.name);
+                              setSelectedTimeSlot('');
+                            }}
+                            className={`p-3 rounded border text-left flex items-center gap-3 transition ${
+                              isSelected
+                                ? 'border-brand-gold bg-brand-gold/15 text-brand-cream'
+                                : 'border-white/10 bg-black/50 text-brand-cream/70 hover:border-white/20'
+                            }`}
+                          >
+                            <div className="relative w-11 h-11 rounded overflow-hidden bg-black/60 shrink-0">
+                              <Image
+                                src={b.photoUrl || '/images/barber-1.webp'}
+                                alt={b.name}
+                                fill
+                                sizes="44px"
+                                className="object-cover"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-display text-xs font-bold text-brand-cream truncate">
+                                {b.name}
+                              </p>
+                              <p className="text-[10px] font-mono text-brand-gold truncate">{b.role}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <form onSubmit={handleBook} className="mt-6 space-y-6">
-                    {/* 1. SELEÇÃO DO DIA */}
-                    <div>
-                      <label className="block font-display text-xs font-bold uppercase tracking-wider text-brand-cream">
-                        1. Escolha o dia (Segunda a Quarta):
-                      </label>
-                      <p className="mt-1 text-xs text-brand-cream/60">
-                        Dias de quinta a domingo aparecem bloqueados respeitando a regra oficial do Clube.
-                      </p>
+                  {/* PASSO 2: ESCOLHA DA DATA */}
+                  <div className="border-t border-white/10 pt-5">
+                    <label className="block text-xs font-mono uppercase tracking-wider text-brand-gold font-bold mb-2">
+                      2. Escolha o Dia (Segunda a Quarta):
+                    </label>
 
-                      <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-7">
-                        {upcomingDays.map((day) => {
-                          const isSelected = selectedDateStr === day.dateStr;
+                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                      {upcomingDays.map((day) => {
+                        const isSelected = selectedDateStr === day.dateStr;
+                        return (
+                          <button
+                            key={day.dateStr}
+                            type="button"
+                            disabled={!day.isAllowed}
+                            onClick={() => {
+                              setSelectedDateStr(day.dateStr);
+                              setSelectedTimeSlot('');
+                            }}
+                            className={`flex flex-col items-center justify-center rounded p-2 text-center transition ${
+                              isSelected
+                                ? 'border-2 border-brand-gold bg-brand-gold text-brand-black font-bold'
+                                : day.isAllowed
+                                ? 'border border-white/10 bg-black/60 text-brand-cream hover:border-brand-gold/60'
+                                : 'border border-white/5 bg-zinc-900/30 text-brand-cream/20 cursor-not-allowed opacity-40'
+                            }`}
+                          >
+                            <span className="text-[10px] uppercase font-mono">{day.dayOfWeekName}</span>
+                            <span className="font-display text-sm font-bold">{day.dayOfMonth}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* PASSO 3: ESCOLHA DO HORÁRIO LIVRE DA CADEIRA */}
+                  {selectedDateStr && (
+                    <div className="border-t border-white/10 pt-5">
+                      <label className="block text-xs font-mono uppercase tracking-wider text-brand-gold font-bold mb-2">
+                        3. Escolha o Horário Livre de {selectedBarber}:
+                      </label>
+
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                        {availableSlots.map((slot) => {
+                          const isSelected = selectedTimeSlot === slot;
+                          // Validação estrita por cadeira/barbeiro
+                          const isTaken = appointments.some(
+                            (a) =>
+                              a.date === selectedDateStr &&
+                              a.timeSlot === slot &&
+                              a.barberName === selectedBarber &&
+                              a.status === 'confirmed'
+                          );
+
                           return (
                             <button
-                              key={day.dateStr}
+                              key={slot}
                               type="button"
-                              disabled={!day.isAllowed}
-                              onClick={() => {
-                                setSelectedDateStr(day.dateStr);
-                                setSelectedTimeSlot('');
-                              }}
-                              className={`flex flex-col items-center justify-center rounded-lg p-2.5 transition-all text-center ${
+                              disabled={isTaken}
+                              onClick={() => setSelectedTimeSlot(slot)}
+                              className={`p-2 rounded text-xs font-mono font-bold transition ${
                                 isSelected
-                                  ? 'border-2 border-brand-gold bg-brand-gold text-brand-black shadow-gold font-bold scale-105'
-                                  : day.isAllowed
-                                  ? 'border border-white/10 bg-brand-black/80 text-brand-cream hover:border-brand-gold/60 hover:bg-brand-black'
-                                  : 'border border-white/5 bg-brand-graphite/20 text-brand-cream/20 cursor-not-allowed opacity-50'
+                                  ? 'bg-brand-gold text-brand-black'
+                                  : isTaken
+                                  ? 'bg-red-950/30 text-red-400/40 border border-red-500/20 line-through cursor-not-allowed'
+                                  : 'border border-white/10 bg-black/60 text-brand-cream hover:border-brand-gold hover:text-brand-gold'
                               }`}
                             >
-                              <span className="text-[10px] font-semibold uppercase">{day.dayOfWeekName}</span>
-                              <span className="font-display text-sm font-black">{day.dayOfMonth}</span>
-                              {!day.isAllowed && (
-                                <span className="mt-1 text-[8px] uppercase tracking-tighter text-red-400/60">
-                                  Bloqueado
-                                </span>
-                              )}
+                              {slot}
                             </button>
                           );
                         })}
                       </div>
                     </div>
+                  )}
 
-                    {/* 2. SELEÇÃO DO HORÁRIO */}
-                    {selectedDateStr && (
-                      <div className="border-t border-white/10 pt-6 animate-in fade-in">
-                        <label className="block font-display text-xs font-bold uppercase tracking-wider text-brand-cream">
-                          2. Escolha o horário disponível:
+                  {/* PASSO 4: OBSERVAÇÕES & SUBMIT */}
+                  {selectedTimeSlot && (
+                    <div className="border-t border-white/10 pt-5 space-y-4">
+                      <div>
+                        <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                          Observação ou preferência (Opcional)
                         </label>
-                        <p className="mt-1 text-xs text-brand-cream/60">
-                          {new Date(selectedDateStr + 'T12:00:00').getDay() === 1
-                            ? 'Segunda-feira: das 14h às 18h30'
-                            : 'Terça e Quarta: das 08h às 18h30 (sem fechar ao meio-dia)'}
-                        </p>
-
-                        <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">
-                          {availableSlots.map((slot) => {
-                            const isSelected = selectedTimeSlot === slot;
-                            const isTaken = appointments.some(
-                              (a) =>
-                                a.date === selectedDateStr &&
-                                a.timeSlot === slot &&
-                                a.status === 'confirmed',
-                            );
-
-                            return (
-                              <button
-                                key={slot}
-                                type="button"
-                                disabled={isTaken}
-                                onClick={() => setSelectedTimeSlot(slot)}
-                                className={`rounded-md p-2.5 text-xs font-bold transition-all ${
-                                  isSelected
-                                    ? 'bg-brand-gold text-brand-black shadow-gold scale-105'
-                                    : isTaken
-                                    ? 'bg-red-950/30 text-red-400/40 border border-red-500/20 line-through cursor-not-allowed'
-                                    : 'border border-white/10 bg-brand-black/70 text-brand-cream hover:border-brand-gold hover:text-brand-gold'
-                                }`}
-                              >
-                                {slot}
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <input
+                          type="text"
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Ex: Barba alinhada com toalha quente, navalha nova..."
+                          className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                        />
                       </div>
-                    )}
 
-                    {/* 3. OBSERVAÇÕES */}
-                    {selectedTimeSlot && (
-                      <div className="border-t border-white/10 pt-6 space-y-4 animate-in fade-in">
-                        {barbers.length > 0 && (
-                          <div>
-                            <label className="block font-display text-xs font-bold uppercase tracking-wider text-brand-cream">
-                              3. Escolha o Barbeiro de Preferência (Opcional):
-                            </label>
-                            <select
-                              value={selectedBarber}
-                              onChange={(e) => setSelectedBarber(e.target.value)}
-                              className="mt-2 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                            >
-                              <option value="Primeiro Barbeiro Disponível">Qualquer Barbeiro Disponível</option>
-                              {barbers.map((b) => (
-                                <option key={b.id} value={b.name}>
-                                  {b.name} — {b.role}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-
-                        <div>
-                          <label className="block font-display text-xs font-bold uppercase tracking-wider text-brand-cream">
-                            {barbers.length > 0 ? '4' : '3'}. Observação para o barbeiro (opcional):
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ex: Quero manter a barba mais cheia / Degradê navalhado"
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            className="mt-2 w-full rounded-md border border-white/10 bg-brand-black px-4 py-2.5 text-xs text-brand-cream placeholder-brand-cream/30 focus:border-brand-gold focus:outline-none"
-                          />
+                      {error && (
+                        <div className="p-3 rounded bg-red-950/80 border border-red-500/40 text-xs text-red-200">
+                          {error}
                         </div>
+                      )}
 
-                        <BrandButton
-                          type="submit"
-                          variant="gold"
-                          size="full"
-                          disabled={bookingLoading}
-                          className="mt-6"
-                        >
-                          {bookingLoading ? 'Agendando...' : 'Confirmar Agendamento no Clube'}
-                        </BrandButton>
-                      </div>
-                    )}
-                  </form>
-                </div>
+                      <BrandButton
+                        type="submit"
+                        disabled={bookingLoading}
+                        size="full"
+                        className="py-3 text-xs uppercase tracking-wider font-bold"
+                      >
+                        {bookingLoading ? 'Confirmando Horário...' : 'Confirmar Agendamento'}
+                      </BrandButton>
+                    </div>
+                  )}
+                </form>
               </div>
 
-              {/* LATERAL: MEUS AGENDAMENTOS */}
-              <div>
-                <div className="rounded-2xl border border-white/10 bg-brand-graphite/40 p-6 shadow-card">
-                  <div className="flex items-center gap-2 border-b border-white/10 pb-4">
-                    <CalendarDays className="h-5 w-5 text-brand-gold" />
-                    <h3 className="font-display text-base font-bold uppercase text-brand-cream">
-                      Meus Agendamentos
-                    </h3>
-                  </div>
+              {/* COLUNA LATERAL: HISTÓRICO DE AGENDAMENTOS */}
+              <div className="p-6 rounded border border-white/10 bg-[#141414] space-y-4">
+                <h3 className="font-display text-xs font-bold uppercase text-brand-cream tracking-wide border-b border-white/10 pb-2">
+                  Seus Agendamentos
+                </h3>
 
-                  {appointments.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-brand-cream/50">
-                      Você ainda não possui horários agendados.
-                    </div>
-                  ) : (
-                    <ul className="mt-4 divide-y divide-white/5">
-                      {appointments.map((apt) => (
-                        <li key={apt.id} className="py-4 first:pt-0 last:pb-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className="font-display text-sm font-bold text-brand-cream">
-                                {new Date(apt.date + 'T12:00:00').toLocaleDateString('pt-BR', {
-                                  weekday: 'short',
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                })}
-                                {' às '}
-                                <span className="text-brand-gold">{apt.timeSlot}</span>
-                              </p>
-                              <p className="text-xs text-brand-cream/60">{apt.serviceType}</p>
-                              {apt.notes && (
-                                <p className="mt-1 text-[11px] text-brand-cream/40 italic">
-                                  &quot;{apt.notes}&quot;
-                                </p>
-                              )}
-                            </div>
-
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                                apt.status === 'confirmed'
-                                  ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
-                                  : apt.status === 'completed'
-                                  ? 'bg-blue-950/60 text-blue-400 border border-blue-500/30'
-                                  : 'bg-red-950/60 text-red-400 border border-red-500/30'
-                              }`}
+                {appointments.length === 0 ? (
+                  <p className="text-xs text-brand-cream/40 font-mono py-4">
+                    Nenhum agendamento ativo. Escolha o barbeiro, o dia e o horário ao lado.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {appointments.map((apt) => (
+                      <div
+                        key={apt.id}
+                        className="p-3 rounded bg-black/60 border border-white/10 space-y-1 text-xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-brand-gold font-bold">
+                            {apt.date} • {apt.timeSlot}
+                          </span>
+                          <span className="text-[9px] font-mono uppercase bg-white/5 px-1.5 py-0.5 rounded text-brand-cream/70">
+                            {apt.status}
+                          </span>
+                        </div>
+                        <p className="text-brand-cream font-medium truncate">Profissional: {apt.barberName}</p>
+                        {apt.status === 'confirmed' && (
+                          <div className="pt-2 border-t border-white/5 flex justify-end">
+                            <button
+                              onClick={() => handleCancelAppointment(apt.id)}
+                              className="text-[11px] font-mono text-red-400 hover:underline"
                             >
-                              {apt.status === 'confirmed'
-                                ? 'Confirmado'
-                                : apt.status === 'completed'
-                                ? 'Realizado'
-                                : 'Cancelado'}
-                            </span>
+                              Cancelar Horário
+                            </button>
                           </div>
-
-                          {apt.status === 'confirmed' && (
-                            <div className="mt-3 flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleCancelAppointment(apt.id)}
-                                className="text-[11px] text-red-400 hover:underline"
-                              >
-                                Cancelar horário
-                              </button>
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
       </main>
+
+      {/* MODAL 4-GRID DO MANUAL DO ASSINANTE */}
+      <SubscriberManualModal
+        isOpen={isManualOpen}
+        onClose={() => setIsManualOpen(false)}
+      />
     </div>
   );
 }

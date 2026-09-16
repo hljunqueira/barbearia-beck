@@ -11,7 +11,7 @@ import { productsRepository } from '@/lib/repositories';
 export async function getProducts(): Promise<Product[]> {
   const products = await productsRepository.list();
 
-  return products.filter((product) => product.inStock);
+  return products.filter((product) => product.showOnHome !== false);
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {

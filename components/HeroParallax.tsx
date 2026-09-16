@@ -13,12 +13,16 @@ const DESKTOP_QUERY = '(min-width: 769px)';
 const MOBILE_QUERY = '(max-width: 768px)';
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
+interface HeroParallaxProps {
+  bgImage?: string;
+}
+
 /**
  * Hero Imponente & Minimalista — Estilo La Mafia / Fellow Barber.
  * Foco exclusivo na presença visual da marca: Imagem de fundo atmosférica + Logo centralizada.
  * Zero textos ou botões concorrendo com a identidade visual.
  */
-const HeroParallax = () => {
+export const HeroParallax = ({ bgImage = '/images/hero-bg.webp' }: HeroParallaxProps) => {
   const container = useRef<HTMLElement>(null);
 
   useGSAP(
@@ -80,7 +84,7 @@ const HeroParallax = () => {
       {/* Camada 1 — Imagem de fundo cinematográfica */}
       <div className="hero-layer-bg absolute inset-x-0 -inset-y-[12%] will-change-transform">
         <Image
-          src="/images/hero-bg.webp"
+          src={bgImage || '/images/hero-bg.webp'}
           alt=""
           fill
           priority

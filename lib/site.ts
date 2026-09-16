@@ -41,12 +41,18 @@ export const fullAddress = (): string =>
 
 /**
  * Gera link do WhatsApp com mensagem pré-preenchida.
- * Se o número não estiver configurado, direciona para a seção de contato.
+ * Suporta número customizado (ex: envio direto para cliente aniversariante) ou oficial da barbearia.
  */
-export const whatsappLink = (message: string): string =>
-  SITE.whatsappNumber
-    ? `https://wa.me/${SITE.whatsappNumber}?text=${encodeURIComponent(message)}`
+export const whatsappLink = (message: string, customPhone?: string): string => {
+  const cleanPhone = customPhone ? customPhone.replace(/\D/g, '') : '';
+  const targetPhone = cleanPhone
+    ? (cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`)
+    : (SITE.whatsappNumber ?? '554899578323');
+
+  return targetPhone
+    ? `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`
     : '#contato';
+};
 
 export const mapsLink = (): string =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress())}`;

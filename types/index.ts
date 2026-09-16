@@ -73,6 +73,9 @@ export interface Product {
   readonly compareAtPriceInCents: number | null;
   readonly imageUrl: string;
   readonly inStock: boolean;
+  readonly stockQuantity?: number;
+  readonly minStockAlert?: number;
+  readonly showOnHome?: boolean;
   /** Avaliação média de 0 a 5. */
   readonly rating: number;
 }
@@ -95,6 +98,10 @@ export interface Subscription {
   readonly status: SubscriptionStatus;
   readonly startDate: string;
   readonly nextBillingDate: string;
+  readonly birthDate?: string | null;
+  readonly notes?: string | null;
+  readonly preferredBarberId?: string | null;
+  readonly preferredBarber?: Barber | null;
 }
 
 export type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'canceled';
@@ -107,6 +114,7 @@ export interface Appointment {
   readonly planName?: string;
   readonly serviceType: string;
   readonly barberName?: string;
+  readonly barberId?: string | null;
   readonly priceInCents?: number;
   readonly durationMinutes?: number;
   readonly date: string; // YYYY-MM-DD
@@ -133,5 +141,37 @@ export interface AdminUserItem {
   readonly name: string;
   readonly role: string;
   readonly createdAt: string;
+}
+
+export interface Coupon {
+  readonly id: string;
+  readonly code: string;
+  readonly discountType: 'percentage' | 'fixed';
+  readonly discountValue: number;
+  readonly validUntil?: string | null;
+  readonly maxUses?: number | null;
+  readonly usedCount: number;
+  readonly active: boolean;
+  readonly createdAt?: string;
+}
+
+export interface PromotionCampaign {
+  readonly id: string;
+  readonly title: string;
+  readonly bannerText: string;
+  readonly couponCode?: string | null;
+  readonly active: boolean;
+  readonly startDate?: string | null;
+  readonly endDate?: string | null;
+  readonly createdAt?: string;
+}
+
+export interface AgendaSettings {
+  readonly id: string;
+  readonly slotIntervalMinutes: number;
+  readonly openingTime: string;
+  readonly closingTime: string;
+  readonly allowedClubDays: number[];
+  readonly breakTimes?: { start: string; end: string; label?: string }[] | null;
 }
 
