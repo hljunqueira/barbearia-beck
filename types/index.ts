@@ -23,7 +23,8 @@ export type ServiceIcon = 'scissors' | 'beard' | 'combo' | 'highlights' | 'plati
 
 export interface ServiceGalleryPhoto {
   readonly url: string;
-  readonly title: string;
+  readonly title?: string;
+  readonly caption?: string;
   readonly description?: string;
 }
 
@@ -61,13 +62,26 @@ export interface Plan {
   readonly badge: string | null;
 }
 
-export type ProductCategory = 'pomada' | 'oleo' | 'balm' | 'kit';
+export type ProductType = 'cosmetic' | 'beverage';
+
+export type ProductCategory =
+  | 'pomada'
+  | 'oleo'
+  | 'balm'
+  | 'kit'
+  | 'cerveja'
+  | 'refrigerante'
+  | 'energetico'
+  | 'agua'
+  | 'destilado';
 
 export interface Product {
   readonly id: string;
   readonly slug: string;
   readonly name: string;
   readonly category: ProductCategory;
+  readonly productType?: ProductType;
+  readonly volumeMl?: string | null;
   readonly description: string;
   readonly priceInCents: number;
   readonly compareAtPriceInCents: number | null;

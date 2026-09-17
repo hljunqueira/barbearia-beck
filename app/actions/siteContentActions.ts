@@ -329,8 +329,8 @@ export async function getAboutContent(): Promise<AboutContentData> {
           founderName: '',
           founderRole: '',
           founderBio: '',
-          founderPhoto: '/images/hero-bg-2.webp',
-          shopPhotos: ['/images/hero-bg.webp', '/images/hero-bg-2.webp'],
+          founderPhoto: '',
+          shopPhotos: [],
         },
       });
     }
@@ -350,8 +350,8 @@ export async function getAboutContent(): Promise<AboutContentData> {
       founderName: '',
       founderRole: '',
       founderBio: '',
-      founderPhoto: '/images/hero-bg-2.webp',
-      shopPhotos: ['/images/hero-bg.webp', '/images/hero-bg-2.webp'],
+      founderPhoto: '',
+      shopPhotos: [],
     };
   }
 }
@@ -375,7 +375,7 @@ export async function updateAboutContent(
         founderName: data.founderName || '',
         founderRole: data.founderRole || '',
         founderBio: data.founderBio || '',
-        founderPhoto: data.founderPhoto || '/images/hero-bg-2.webp',
+        founderPhoto: data.founderPhoto || '',
         shopPhotos: (data.shopPhotos as any) || [],
       },
     });

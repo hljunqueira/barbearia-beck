@@ -89,6 +89,8 @@ export const productsRepository: ProductsRepository = {
       slug: prod.slug,
       name: prod.name,
       category: prod.category as Product['category'],
+      productType: (prod.productType as Product['productType']) || 'cosmetic',
+      volumeMl: prod.volumeMl || null,
       description: prod.description,
       priceInCents: prod.priceInCents,
       compareAtPriceInCents: prod.compareAtPriceInCents,
@@ -112,6 +114,8 @@ export const productsRepository: ProductsRepository = {
       slug: prod.slug,
       name: prod.name,
       category: prod.category as Product['category'],
+      productType: (prod.productType as Product['productType']) || 'cosmetic',
+      volumeMl: prod.volumeMl || null,
       description: prod.description,
       priceInCents: prod.priceInCents,
       compareAtPriceInCents: prod.compareAtPriceInCents,
@@ -142,6 +146,7 @@ export const servicesRepository: ServicesRepository = {
       popular: s.popular,
       badge: s.badge || undefined,
       image: s.image || undefined,
+      gallery: Array.isArray(s.gallery) ? s.gallery : undefined,
     }));
   },
 
@@ -162,6 +167,7 @@ export const servicesRepository: ServicesRepository = {
       popular: s.popular,
       badge: s.badge || undefined,
       image: s.image || undefined,
+      gallery: Array.isArray(s.gallery) ? s.gallery : undefined,
     };
   },
 };

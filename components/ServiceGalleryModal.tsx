@@ -62,7 +62,8 @@ export const ServiceGalleryModal = ({ service, onClose }: ServiceGalleryModalPro
     setPhotoIndex((prev) => (prev - 1 + gallery.length) % gallery.length);
   };
 
-  const whatsappMessage = `Olá! Vi o serviço de *${service.name}* no site da Beck Barbearia e gostaria de fazer esse estilo (${currentPhoto.title}).`;
+  const photoTitle = currentPhoto.title || currentPhoto.caption || service.name;
+  const whatsappMessage = `Olá! Vi o serviço de *${service.name}* no site da Beck Barbearia e gostaria de fazer esse estilo (${photoTitle}).`;
   const whatsappUrl = whatsappLink(whatsappMessage);
 
   return (
@@ -117,8 +118,8 @@ export const ServiceGalleryModal = ({ service, onClose }: ServiceGalleryModalPro
         {/* Área da Imagem / Foto do Corte */}
         <div className="relative aspect-[4/3] w-full overflow-hidden bg-brand-black sm:aspect-[16/10]">
           <Image
-            src={currentPhoto.url}
-            alt={currentPhoto.title}
+            src={currentPhoto.url || service.image || '/images/hero-bg-2.webp'}
+            alt={photoTitle}
             fill
             sizes="(max-width: 768px) 100vw, 700px"
             className="object-cover"
@@ -165,16 +166,18 @@ export const ServiceGalleryModal = ({ service, onClose }: ServiceGalleryModalPro
           )}
 
           {/* Legenda sobreposta na imagem */}
-          <div className="absolute inset-x-0 bottom-0 p-5">
-            <h4 className="font-display text-base font-bold uppercase tracking-wide text-brand-cream sm:text-lg">
-              {currentPhoto.title}
-            </h4>
-            {currentPhoto.description && (
-              <p className="mt-1 text-xs text-brand-cream/80 sm:text-sm">
-                {currentPhoto.description}
-              </p>
-            )}
-          </div>
+          {(currentPhoto.title || currentPhoto.caption) && (
+            <div className="absolute inset-x-0 bottom-0 p-5">
+              <h4 className="font-display text-base font-bold uppercase tracking-wide text-brand-cream sm:text-lg">
+                {currentPhoto.title || currentPhoto.caption}
+              </h4>
+              {currentPhoto.description && (
+                <p className="mt-1 text-xs text-brand-cream/80 sm:text-sm">
+                  {currentPhoto.description}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Rodapé com Preço e Botão Oficial WhatsApp */}

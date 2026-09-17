@@ -18,6 +18,7 @@ import {
 import { BrandButton } from '@/components/BrandButton';
 import { ImageUploadField } from '@/components/admin/ImageUploadField';
 import { SafeDeleteModal } from '@/components/admin/SafeDeleteModal';
+import { ServiceModal } from '@/components/admin/ServiceModal';
 import {
   getSiteContent,
   updateSiteContent,
@@ -114,6 +115,8 @@ export function SiteCmsManager() {
   const [founderRole, setFounderRole] = useState('');
   const [founderBio, setFounderBio] = useState('');
   const [founderPhoto, setFounderPhoto] = useState('/images/hero-bg-2.webp');
+  const [shopPhotos, setShopPhotos] = useState<string[]>([]);
+  const [newShopPhotoUrl, setNewShopPhotoUrl] = useState('');
 
   // ==========================================
   // ESTADOS DE SERVIÇOS & PLANOS (CRUD)
@@ -217,6 +220,7 @@ export function SiteCmsManager() {
       setFounderRole(about.founderRole || '');
       setFounderBio(about.founderBio || '');
       setFounderPhoto(about.founderPhoto || '/images/hero-bg-2.webp');
+      setShopPhotos(about.shopPhotos || []);
 
       // Tabela de Serviços & Planos
       setServices(servicesData);
@@ -292,6 +296,7 @@ export function SiteCmsManager() {
         founderRole: founderRole.trim(),
         founderBio: founderBio.trim(),
         founderPhoto,
+        shopPhotos,
       });
 
       if (res.ok) {
@@ -310,86 +315,44 @@ export function SiteCmsManager() {
   // HANDLERS: SERVIÇOS
   // ==========================================
   const handleOpenServiceModal = (service?: Service) => {
-    if (service) {
-      setEditingService(service);
-      setServiceName(service.name);
-      setServiceCategory((service as any).category || 'corte');
-      setServiceDescription(service.description);
-      setServicePriceReais((service.priceInCents / 100).toFixed(2));
-      setServiceDuration(String(service.durationMinutes || 30));
-      setServicePopular(Boolean(service.popular));
-      setServiceBadge(service.badge || '');
-      setServiceImage(service.image || '');
-    } else {
-      setEditingService(null);
-      setServiceName('');
-      setServiceCategory('corte');
-      setServiceDescription('');
-      setServicePriceReais('45.00');
-      setServiceDuration('30');
-      setServicePopular(false);
-      setServiceBadge('');
-      setServiceImage('');
-    }
+    setEditingService(service || null);
     setIsServiceModalOpen(true);
   };
 
-  const handleSaveService = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingService(true);
+  const handleSaveServiceModal = async (data: {
+    id?: string;
+    name: string;
+    category: string;
+    description: string;
+    priceInCents: number;
+    durationMinutes: number;
+    popular: boolean;
+    badge: string;
+    image?: string;
+    gallery: { url: string; title?: string }[];
+  }): Promise<{ ok: boolean; error?: string }> => {
     try {
-      const priceCents = Math.round(parseFloat(servicePriceReais.replace(',', '.')) * 100);
-      if (isNaN(priceCents) || priceCents <= 0) {
-        showFeedback('Informe um valor válido em R$.', true);
-        setSavingService(false);
-        return;
-      }
-
-      if (editingService) {
-        const res = await updateService(editingService.id, {
-          name: serviceName,
-          category: serviceCategory,
-          description: serviceDescription,
-          priceInCents: priceCents,
-          durationMinutes: Number(serviceDuration) || 30,
-          popular: servicePopular,
-          badge: serviceBadge.trim() || null,
-          image: serviceImage.trim() || null,
-        });
-
+      if (data.id) {
+        const res = await updateService(data.id, data);
         if (res.ok) {
           showFeedback('Serviço atualizado com sucesso!');
-          setIsServiceModalOpen(false);
           const updated = await listAdminServices();
           setServices(updated);
-        } else {
-          showFeedback(res.error || 'Erro ao salvar serviço.', true);
+          return { ok: true };
         }
+        return { ok: false, error: res.error };
       } else {
-        const res = await createService({
-          name: serviceName,
-          category: serviceCategory,
-          description: serviceDescription,
-          priceInCents: priceCents,
-          durationMinutes: Number(serviceDuration) || 30,
-          popular: servicePopular,
-          badge: serviceBadge.trim() || undefined,
-          image: serviceImage.trim() || undefined,
-        });
-
+        const res = await createService(data);
         if (res.ok) {
           showFeedback('Novo serviço criado com sucesso!');
-          setIsServiceModalOpen(false);
           const updated = await listAdminServices();
           setServices(updated);
-        } else {
-          showFeedback(res.error || 'Erro ao criar serviço.', true);
+          return { ok: true };
         }
+        return { ok: false, error: res.error };
       }
     } catch (err: any) {
-      showFeedback(err?.message || 'Falha ao processar serviço.', true);
-    } finally {
-      setSavingService(false);
+      return { ok: false, error: err?.message || 'Falha ao processar serviço.' };
     }
   };
 
@@ -884,53 +847,74 @@ export function SiteCmsManager() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-                  {services.map((service) => (
-                    <div
-                      key={service.id}
-                      className="p-4 rounded border border-white/10 bg-black/60 flex flex-col justify-between hover:border-brand-gold/40 transition"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="font-display text-sm font-bold uppercase text-brand-cream">
-                            {service.name}
-                          </h4>
-                          {service.badge && (
-                            <span className="text-[9px] font-mono uppercase bg-brand-gold text-brand-black font-bold px-1.5 py-0.5 rounded">
-                              {service.badge}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-brand-cream/60 line-clamp-2">{service.description}</p>
-                        <div className="pt-2 flex items-center justify-between border-t border-white/5">
-                          <span className="font-display text-base font-bold text-brand-gold">
-                            {formatBRL(service.priceInCents)}
-                          </span>
-                          <span className="text-[11px] font-mono text-brand-cream/50 flex items-center gap-1">
-                            <Clock size={12} /> {service.durationMinutes} min
-                          </span>
-                        </div>
-                      </div>
+                  {services.map((service) => {
+                    const photosCount = service.gallery?.length || (service.image ? 1 : 0);
+                    const coverPhoto = service.gallery?.[0]?.url || service.image || '/images/hero-bg.webp';
 
-                      <div className="pt-3 mt-3 border-t border-white/10 flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenServiceModal(service)}
-                          className="p-1.5 text-brand-cream/70 hover:text-brand-gold border border-white/10 hover:border-brand-gold/40 rounded transition"
-                          title="Editar Serviço"
-                        >
-                          <Edit2 size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setServiceToDelete(service)}
-                          className="p-1.5 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 rounded transition"
-                          title="Excluir Serviço"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                    return (
+                      <div
+                        key={service.id}
+                        className="rounded border border-white/10 bg-black/60 overflow-hidden flex flex-col justify-between hover:border-brand-gold/40 transition"
+                      >
+                        <div>
+                          {/* Miniatura da Foto de Capa do Corte */}
+                          <div className="relative aspect-[16/10] w-full bg-black/80 border-b border-white/10">
+                            <Image
+                              src={coverPhoto}
+                              alt={service.name}
+                              fill
+                              sizes="240px"
+                              className="object-cover"
+                            />
+                            <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-black/80 text-brand-gold border border-brand-gold/40 backdrop-blur-sm">
+                                {photosCount} {photosCount === 1 ? 'foto' : 'fotos'}
+                              </span>
+                            </div>
+                            {service.badge && (
+                              <span className="absolute top-2 right-2 text-[9px] font-mono uppercase bg-brand-gold text-brand-black font-bold px-1.5 py-0.5 rounded shadow">
+                                {service.badge}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="p-4 space-y-2">
+                            <h4 className="font-display text-sm font-bold uppercase text-brand-cream">
+                              {service.name}
+                            </h4>
+                            <p className="text-xs text-brand-cream/60 line-clamp-2">{service.description}</p>
+                            <div className="pt-2 flex items-center justify-between border-t border-white/5">
+                              <span className="font-display text-base font-bold text-brand-gold">
+                                {formatBRL(service.priceInCents)}
+                              </span>
+                              <span className="text-[11px] font-mono text-brand-cream/50 flex items-center gap-1">
+                                <Clock size={12} /> {service.durationMinutes} min
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-3 border-t border-white/10 flex items-center justify-between bg-black/40">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenServiceModal(service)}
+                            className="text-[11px] font-mono text-brand-gold hover:underline flex items-center gap-1"
+                          >
+                            <Edit2 size={12} />
+                            <span>Editar &amp; Fotos</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setServiceToDelete(service)}
+                            className="p-1.5 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 rounded transition"
+                            title="Excluir Serviço"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1613,9 +1597,70 @@ export function SiteCmsManager() {
                   </div>
                 </div>
 
+                {/* ======================================================== */}
+                {/* FOTOS DO ESPAÇO DA BARBEARIA (ATÉ 6 FOTOS)              */}
+                {/* ======================================================== */}
+                <div className="pt-4 border-t border-white/10 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h4 className="font-display text-xs font-bold uppercase tracking-wider text-brand-gold">
+                        Fotos do Espaço da Barbearia (Ambiente &amp; Fachada)
+                      </h4>
+                      <p className="text-[11px] text-brand-cream/60">
+                        Adicione até 6 fotos reais do ambiente da barbearia para serem exibidas na página Sobre.
+                      </p>
+                    </div>
+                    <span className="text-[11px] font-mono text-brand-gold font-bold px-2 py-0.5 rounded bg-black/60 border border-white/10">
+                      {shopPhotos.length} / 6 fotos
+                    </span>
+                  </div>
+
+                  {shopPhotos.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                      {shopPhotos.map((photoUrl, idx) => (
+                        <div key={idx} className="relative aspect-square rounded overflow-hidden border border-white/15 group bg-black/60">
+                          <Image src={photoUrl} alt={`Foto espaço ${idx + 1}`} fill sizes="140px" className="object-cover" />
+                          <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <button
+                              type="button"
+                              onClick={() => setShopPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                              className="p-1.5 rounded bg-red-950 text-red-300 border border-red-500/40 hover:bg-red-900 transition"
+                              title="Remover foto do espaço"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {shopPhotos.length < 6 ? (
+                    <div className="p-3.5 rounded border border-dashed border-white/20 bg-black/30 space-y-2">
+                      <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/80">
+                        Adicionar Nova Foto do Espaço ({shopPhotos.length + 1}ª de 6)
+                      </label>
+                      <ImageUploadField
+                        value={newShopPhotoUrl}
+                        onChange={(url) => {
+                          if (url) {
+                            setShopPhotos((prev) => [...prev, url]);
+                            setNewShopPhotoUrl('');
+                          }
+                        }}
+                        label="Clique para upload da foto do espaço (.webp, .jpg, .png)"
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded bg-amber-950/40 border border-amber-500/30 text-xs text-amber-300 font-mono">
+                      Limite de 6 fotos do espaço atingido.
+                    </div>
+                  )}
+                </div>
+
                 <div className="pt-4 border-t border-white/10 flex justify-end">
                   <BrandButton type="submit" variant="gold" size="sm" disabled={savingCms}>
-                    {savingCms ? 'Salvando...' : 'Salvar História & Institucional'}
+                    {savingCms ? 'Salvando...' : 'Salvar História &amp; Institucional'}
                   </BrandButton>
                 </div>
               </div>
@@ -1625,147 +1670,14 @@ export function SiteCmsManager() {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 4-GRID: SERVIÇO (CRIAR / EDITAR)                   */}
+      {/* MODAL DEDICADO: SERVIÇO COM GALERIA DE ATÉ 5 FOTOS       */}
       {/* ======================================================== */}
-      {isServiceModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
-        >
-          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg border border-brand-gold/30 bg-[#141414] shadow-2xl p-6 sm:p-8 space-y-6">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div>
-                <h3 className="font-display text-base font-bold uppercase tracking-wider text-brand-cream">
-                  {editingService ? 'Editar Serviço' : 'Novo Serviço da Tabela'}
-                </h3>
-                <p className="text-xs text-brand-cream/60">
-                  Preencha os detalhes e o valor em R$ do serviço
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsServiceModalOpen(false)}
-                className="text-brand-cream/50 hover:text-brand-cream p-1.5 rounded hover:bg-white/5 transition"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveService} className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                    Nome do Serviço *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={serviceName}
-                    onChange={(e) => setServiceName(e.target.value)}
-                    className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                    Categoria *
-                  </label>
-                  <select
-                    value={serviceCategory}
-                    onChange={(e) => setServiceCategory(e.target.value)}
-                    className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
-                  >
-                    <option value="corte">Cabelo / Corte</option>
-                    <option value="barba">Barba / Ritual</option>
-                    <option value="combo">Combo Completo</option>
-                    <option value="quimica">Química / Luzes / Platinado</option>
-                    <option value="acabamento">Acabamento / Sobrancelha</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                    Preço em R$ *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={servicePriceReais}
-                    onChange={(e) => setServicePriceReais(e.target.value)}
-                    className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                    Duração Estimada (min) *
-                  </label>
-                  <input
-                    type="number"
-                    min="10"
-                    step="5"
-                    required
-                    value={serviceDuration}
-                    onChange={(e) => setServiceDuration(e.target.value)}
-                    className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                    Badge de Destaque
-                  </label>
-                  <input
-                    type="text"
-                    value={serviceBadge}
-                    onChange={(e) => setServiceBadge(e.target.value)}
-                    className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
-                  />
-                </div>
-
-                <div className="sm:col-span-2 flex items-center gap-2 pt-6">
-                  <label className="flex items-center gap-2 text-xs text-brand-cream/80 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={servicePopular}
-                      onChange={(e) => setServicePopular(e.target.checked)}
-                      className="rounded border-white/20 text-brand-gold focus:ring-brand-gold bg-black"
-                    />
-                    <span>Marcar como Mais Pedido</span>
-                  </label>
-                </div>
-
-                <div className="sm:col-span-4">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                    Descrição Detalhada do Serviço *
-                  </label>
-                  <textarea
-                    rows={2}
-                    required
-                    value={serviceDescription}
-                    onChange={(e) => setServiceDescription(e.target.value)}
-                    className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition resize-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setIsServiceModalOpen(false)}
-                  className="px-4 py-2 text-xs font-mono uppercase tracking-wider text-brand-cream/70 hover:text-brand-cream transition"
-                >
-                  Cancelar
-                </button>
-                <BrandButton type="submit" variant="gold" size="sm" disabled={savingService}>
-                  {savingService ? 'Salvando...' : editingService ? 'Salvar Alterações' : 'Criar Serviço'}
-                </BrandButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ServiceModal
+        isOpen={isServiceModalOpen}
+        service={editingService}
+        onClose={() => setIsServiceModalOpen(false)}
+        onSave={handleSaveServiceModal}
+      />
 
       {/* ======================================================== */}
       {/* MODAL 4-GRID: PLANO (CRIAR / EDITAR)                     */}

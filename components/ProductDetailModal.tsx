@@ -13,6 +13,11 @@ const CATEGORY_LABEL: Record<ProductCategory, string> = {
   oleo: 'Óleo Nutritivo',
   balm: 'Balm Hidratante',
   kit: 'Kit Exclusivo',
+  cerveja: 'Cerveja Especial',
+  refrigerante: 'Refrigerante',
+  energetico: 'Energético',
+  agua: 'Água Mineral',
+  destilado: 'Destilado / Dose',
 };
 
 interface ProductDetailModalProps {

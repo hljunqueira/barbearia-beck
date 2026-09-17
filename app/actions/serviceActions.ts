@@ -26,6 +26,7 @@ export async function listAdminServices(): Promise<Service[]> {
       popular: s.popular,
       badge: s.badge || undefined,
       image: s.image || undefined,
+      gallery: Array.isArray(s.gallery) ? s.gallery : undefined,
     }));
   } catch (error) {
     console.error('Erro ao listar serviços admin:', error);
@@ -42,6 +43,7 @@ export async function createService(data: {
   popular?: boolean;
   badge?: string;
   image?: string;
+  gallery?: { url: string; title?: string }[];
 }): Promise<{ ok: boolean; service?: Service; error?: string }> {
   try {
     const slugBase = data.name
@@ -53,7 +55,13 @@ export async function createService(data: {
 
     const slug = `${slugBase}-${Date.now().toString().slice(-4)}`;
 
-    const newService = await prisma.service.create({
+    const cleanGallery = Array.isArray(data.gallery)
+      ? data.gallery.filter((item) => item.url?.trim()).slice(0, 5)
+      : null;
+
+    const coverImage = cleanGallery?.[0]?.url || data.image?.trim() || null;
+
+    const newService: any = await prisma.service.create({
       data: {
         slug,
         name: data.name.trim(),
@@ -63,8 +71,9 @@ export async function createService(data: {
         durationMinutes: Number(data.durationMinutes) || 30,
         popular: data.popular ?? false,
         badge: data.badge?.trim() || null,
-        image: data.image?.trim() || null,
-      },
+        image: coverImage,
+        gallery: cleanGallery && cleanGallery.length > 0 ? (cleanGallery as any) : null,
+      } as any,
     });
 
     revalidatePath('/');
@@ -82,6 +91,7 @@ export async function createService(data: {
         popular: newService.popular,
         badge: newService.badge || undefined,
         image: newService.image || undefined,
+        gallery: Array.isArray(newService.gallery) ? (newService.gallery as any) : undefined,
       },
     };
   } catch (error: any) {
@@ -101,9 +111,24 @@ export async function updateService(
     popular?: boolean;
     badge?: string | null;
     image?: string | null;
+    gallery?: { url: string; title?: string }[] | null;
   },
 ): Promise<{ ok: boolean; error?: string }> {
   try {
+    const cleanGallery =
+      data.gallery !== undefined
+        ? Array.isArray(data.gallery)
+          ? data.gallery.filter((item) => item.url?.trim()).slice(0, 5)
+          : null
+        : undefined;
+
+    const coverImage =
+      cleanGallery !== undefined
+        ? cleanGallery?.[0]?.url || data.image?.trim() || null
+        : data.image !== undefined
+          ? data.image ? data.image.trim() : null
+          : undefined;
+
     await prisma.service.update({
       where: { id },
       data: {
@@ -114,7 +139,10 @@ export async function updateService(
         ...(data.durationMinutes !== undefined && { durationMinutes: Number(data.durationMinutes) }),
         ...(data.popular !== undefined && { popular: data.popular }),
         ...(data.badge !== undefined && { badge: data.badge ? data.badge.trim() : null }),
-        ...(data.image !== undefined && { image: data.image ? data.image.trim() : null }),
+        ...(coverImage !== undefined && { image: coverImage }),
+        ...(cleanGallery !== undefined && {
+          gallery: cleanGallery && cleanGallery.length > 0 ? (cleanGallery as any) : null,
+        }),
       },
     });
 

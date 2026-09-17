@@ -10,6 +10,11 @@ const CATEGORY_LABEL: Record<ProductCategory, string> = {
   oleo: 'Óleo',
   balm: 'Balm',
   kit: 'Kit',
+  cerveja: 'Cerveja',
+  refrigerante: 'Refrigerante',
+  energetico: 'Energético',
+  agua: 'Água',
+  destilado: 'Destilado',
 };
 
 interface ProductCardProps {

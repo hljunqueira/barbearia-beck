@@ -11,7 +11,8 @@ import { productsRepository } from '@/lib/repositories';
 export async function getProducts(): Promise<Product[]> {
   const products = await productsRepository.list();
 
-  return products.filter((product) => product.showOnHome !== false);
+  // A vitrine principal de produtos da Home exibe exclusivamente cosméticos de cabelo e barba
+  return products.filter((product) => product.showOnHome !== false && product.productType !== 'beverage');
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {

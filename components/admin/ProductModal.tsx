@@ -2,18 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
-import type { Product, ProductCategory } from '@/types';
+import type { Product, ProductCategory, ProductType } from '@/types';
 import { BrandButton } from '@/components/BrandButton';
 import { ImageUploadField } from '@/components/admin/ImageUploadField';
 
 interface ProductModalProps {
   isOpen: boolean;
   product?: Product | null;
+  initialType?: ProductType;
   onClose: () => void;
   onSave: (data: {
     id?: string;
     name: string;
     category: ProductCategory;
+    productType?: ProductType;
+    volumeMl?: string | null;
     description: string;
     priceInCents: number;
     compareAtPriceInCents?: number | null;
@@ -28,11 +31,14 @@ interface ProductModalProps {
 export function ProductModal({
   isOpen,
   product,
+  initialType = 'cosmetic',
   onClose,
   onSave,
 }: ProductModalProps) {
+  const [productType, setProductType] = useState<ProductType>(initialType);
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ProductCategory>('pomada');
+  const [volumeMl, setVolumeMl] = useState('');
   const [description, setDescription] = useState('');
   const [priceStr, setPriceStr] = useState('');
   const [comparePriceStr, setComparePriceStr] = useState('');
@@ -47,8 +53,11 @@ export function ProductModal({
 
   useEffect(() => {
     if (product) {
+      const type = product.productType || (['cerveja', 'refrigerante', 'energetico', 'agua', 'destilado'].includes(product.category) ? 'beverage' : 'cosmetic');
+      setProductType(type);
       setName(product.name);
       setCategory(product.category);
+      setVolumeMl(product.volumeMl || '');
       setDescription(product.description || '');
       setPriceStr((product.priceInCents / 100).toFixed(2).replace('.', ','));
       setComparePriceStr(
@@ -62,19 +71,21 @@ export function ProductModal({
       setMinStockAlert(product.minStockAlert ?? 2);
       setShowOnHome(product.showOnHome ?? true);
     } else {
+      setProductType(initialType);
       setName('');
-      setCategory('pomada');
+      setCategory(initialType === 'beverage' ? 'cerveja' : 'pomada');
+      setVolumeMl('');
       setDescription('');
       setPriceStr('');
       setComparePriceStr('');
-      setImageUrl('/images/pomada.webp');
+      setImageUrl(initialType === 'beverage' ? '/images/hero-bg-2.webp' : '/images/pomada.webp');
       setInStock(true);
       setStockQuantity(10);
       setMinStockAlert(2);
-      setShowOnHome(true);
+      setShowOnHome(initialType !== 'beverage');
     }
     setError(null);
-  }, [product, isOpen]);
+  }, [product, isOpen, initialType]);
 
   // Fechar com tecla ESC
   useEffect(() => {
@@ -123,6 +134,8 @@ export function ProductModal({
         id: product?.id,
         name: name.trim(),
         category,
+        productType,
+        volumeMl: volumeMl.trim() || null,
         description: description.trim(),
         priceInCents,
         compareAtPriceInCents,
@@ -160,10 +173,16 @@ export function ProductModal({
         <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5">
           <div>
             <p className="text-[10px] font-mono tracking-widest text-brand-gold uppercase">
-              Gestão de Catálogo & Estoque
+              {productType === 'beverage' ? 'Gestão do Bar & Frigobar' : 'Gestão de Catálogo & Estoque'}
             </p>
             <h2 className="font-display text-lg font-bold text-brand-cream uppercase tracking-wide">
-              {product ? 'Editar Produto' : 'Novo Produto'}
+              {product
+                ? productType === 'beverage'
+                  ? 'Editar Bebida'
+                  : 'Editar Produto'
+                : productType === 'beverage'
+                  ? 'Nova Bebida no Frigobar'
+                  : 'Novo Produto'}
             </h2>
           </div>
           <button
@@ -189,13 +208,14 @@ export function ProductModal({
             {/* Nome (ocupa 2 colunas) */}
             <div className="sm:col-span-2">
               <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                Nome do Produto *
+                {productType === 'beverage' ? 'Nome da Bebida *' : 'Nome do Produto *'}
               </label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                placeholder={productType === 'beverage' ? 'Ex: Heineken Long Neck' : 'Ex: Pomada Matte Efeito Seco'}
                 className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
               />
             </div>
@@ -210,28 +230,55 @@ export function ProductModal({
                 onChange={(e) => setCategory(e.target.value as ProductCategory)}
                 className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
               >
-                <option value="pomada">Pomada</option>
-                <option value="oleo">Óleo</option>
-                <option value="balm">Balm</option>
-                <option value="kit">Kit / Barba</option>
+                {productType === 'beverage' ? (
+                  <>
+                    <option value="cerveja">Cerveja / Chopp</option>
+                    <option value="refrigerante">Refrigerante</option>
+                    <option value="energetico">Energético</option>
+                    <option value="agua">Água Mineral</option>
+                    <option value="destilado">Destilado / Dose</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="pomada">Pomada</option>
+                    <option value="oleo">Óleo</option>
+                    <option value="balm">Balm</option>
+                    <option value="kit">Kit / Barba</option>
+                  </>
+                )}
               </select>
             </div>
 
-            {/* Exibir na Home Switch */}
-            <div className="flex flex-col justify-end">
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                Visibilidade
-              </label>
-              <label className="flex items-center gap-2 bg-black/70 border border-white/15 rounded px-3 py-2 cursor-pointer hover:border-brand-gold/50 transition">
+            {/* Volume em ml para bebidas ou switch de Visibilidade */}
+            {productType === 'beverage' ? (
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                  Volume / Embalagem
+                </label>
                 <input
-                  type="checkbox"
-                  checked={showOnHome}
-                  onChange={(e) => setShowOnHome(e.target.checked)}
-                  className="rounded border-white/20 bg-black text-brand-gold focus:ring-0 h-4 w-4"
+                  type="text"
+                  value={volumeMl}
+                  onChange={(e) => setVolumeMl(e.target.value)}
+                  placeholder="Ex: 355ml, Long Neck"
+                  className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
                 />
-                <span className="text-xs text-brand-cream font-medium">Exibir na Home</span>
-              </label>
-            </div>
+              </div>
+            ) : (
+              <div className="flex flex-col justify-end">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                  Visibilidade
+                </label>
+                <label className="flex items-center gap-2 bg-black/70 border border-white/15 rounded px-3 py-2 cursor-pointer hover:border-brand-gold/50 transition">
+                  <input
+                    type="checkbox"
+                    checked={showOnHome}
+                    onChange={(e) => setShowOnHome(e.target.checked)}
+                    className="rounded border-white/20 bg-black text-brand-gold focus:ring-0 h-4 w-4"
+                  />
+                  <span className="text-xs text-brand-cream font-medium">Exibir na Home</span>
+                </label>
+              </div>
+            )}
           </div>
 
           {/* GRID 4 COLUNAS: Preços & Controle de Estoque Numérico */}

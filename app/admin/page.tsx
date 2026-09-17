@@ -31,6 +31,8 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
+  Minus,
+  Beer,
 } from 'lucide-react';
 import type { Appointment, Product, Subscription, SubscriptionStatus, Barber } from '@/types';
 import {
@@ -49,6 +51,7 @@ import {
   deleteProduct,
   toggleProductStock,
   toggleProductHomeVisibility,
+  quickAdjustStockQuantity,
 } from '@/app/actions/productActions';
 import { listBarbersAction } from '@/app/actions/barberActions';
 import { loginAdminAction } from '@/app/actions/authActions';
@@ -107,6 +110,9 @@ export default function AdminPage() {
   const [isDeleteProductModalOpen, setIsDeleteProductModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);
+
+  // Sub-aba de Produtos: Cosméticos vs Bar/Bebidas
+  const [productSubTab, setProductSubTab] = useState<'cosmetics' | 'beverages'>('cosmetics');
 
   // Autenticação Persistente
   useEffect(() => {
@@ -335,6 +341,20 @@ export default function AdminPage() {
     if (res.ok) {
       setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, showOnHome } : p)));
       notifySuccess(showOnHome ? 'Produto visível na Página Inicial.' : 'Produto ocultado da Página Inicial.');
+    }
+  };
+
+  const handleQuickAdjustStock = async (id: string, delta: number) => {
+    const res = await quickAdjustStockQuantity(id, delta);
+    if (res.ok && res.stockQuantity !== undefined) {
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? { ...p, stockQuantity: res.stockQuantity, inStock: Boolean(res.inStock) }
+            : p
+        )
+      );
+      notifySuccess(`Estoque ${delta > 0 ? '+1' : '-1'} atualizado.`);
     }
   };
 
@@ -808,14 +828,52 @@ export default function AdminPage() {
         {/* ======================================================== */}
         {activeTab === 'products' && (
           <div className="space-y-6">
+            {/* Seletor de Sub-Abas: Cosméticos vs Bebidas */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-              <div>
-                <h2 className="font-display text-lg font-bold uppercase text-brand-cream tracking-wide">
-                  Catálogo de Produtos & Controle de Estoque
-                </h2>
-                <p className="text-xs text-brand-cream/50">
-                  Gerencie preços, saldo em estoque físico e visibilidade na Landing Page
-                </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setProductSubTab('cosmetics')}
+                  className={`px-4 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center gap-2 ${
+                    productSubTab === 'cosmetics'
+                      ? 'bg-brand-gold text-brand-black shadow'
+                      : 'bg-white/5 text-brand-cream/70 hover:bg-white/10 hover:text-brand-cream border border-white/10'
+                  }`}
+                >
+                  <Package size={14} />
+                  <span>💈 Cosméticos & Barbearia</span>
+                  <span
+                    className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] ${
+                      productSubTab === 'cosmetics'
+                        ? 'bg-black/30 text-brand-black'
+                        : 'bg-white/10 text-brand-cream/80'
+                    }`}
+                  >
+                    {products.filter((p) => p.productType !== 'beverage').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setProductSubTab('beverages')}
+                  className={`px-4 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider transition flex items-center gap-2 ${
+                    productSubTab === 'beverages'
+                      ? 'bg-brand-gold text-brand-black shadow'
+                      : 'bg-white/5 text-brand-cream/70 hover:bg-white/10 hover:text-brand-cream border border-white/10'
+                  }`}
+                >
+                  <Beer size={14} />
+                  <span>🍺 Bar & Frigobar</span>
+                  <span
+                    className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] ${
+                      productSubTab === 'beverages'
+                        ? 'bg-black/30 text-brand-black'
+                        : 'bg-white/10 text-brand-cream/80'
+                    }`}
+                  >
+                    {products.filter((p) => p.productType === 'beverage').length}
+                  </span>
+                </button>
               </div>
 
               <button
@@ -823,125 +881,210 @@ export default function AdminPage() {
                 className="flex items-center gap-1.5 px-3 py-2 bg-brand-gold text-brand-black text-xs font-bold uppercase tracking-wider font-display rounded hover:bg-brand-gold-light transition"
               >
                 <Plus size={14} />
-                <span>Novo Produto</span>
+                <span>{productSubTab === 'beverages' ? 'Nova Bebida' : 'Novo Produto'}</span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {products.map((prod) => {
-                const isLowStock =
-                  prod.stockQuantity !== undefined &&
-                  prod.minStockAlert !== undefined &&
-                  prod.stockQuantity <= prod.minStockAlert;
+            {/* Subtítulo explicativo */}
+            <div>
+              <h2 className="font-display text-lg font-bold uppercase text-brand-cream tracking-wide">
+                {productSubTab === 'beverages'
+                  ? 'Estoque do Bar & Frigobar da Barbearia'
+                  : 'Catálogo de Produtos & Controle de Estoque'}
+              </h2>
+              <p className="text-xs text-brand-cream/50">
+                {productSubTab === 'beverages'
+                  ? 'Controle rápido de unidades vendidas no balcão (+/-), preços e alerta de estoque mínimo.'
+                  : 'Gerencie preços, saldo em estoque físico e visibilidade na Landing Page.'}
+              </p>
+            </div>
 
+            {/* Grid de Itens */}
+            {(() => {
+              const currentList = products.filter((prod) =>
+                productSubTab === 'beverages'
+                  ? prod.productType === 'beverage'
+                  : prod.productType !== 'beverage'
+              );
+
+              if (currentList.length === 0) {
                 return (
-                  <div
-                    key={prod.id}
-                    className="rounded border border-white/10 bg-[#141414] overflow-hidden flex flex-col justify-between hover:border-brand-gold/40 transition"
-                  >
-                    <div>
-                      {/* Foto */}
-                      <div className="relative aspect-square w-full bg-black/60 border-b border-white/10">
-                        <Image
-                          src={prod.imageUrl}
-                          alt={prod.name}
-                          fill
-                          sizes="(max-width: 640px) 100vw, 300px"
-                          className="object-cover"
-                        />
-
-                        {/* Badges Flutuantes */}
-                        <div className="absolute top-3 left-3 flex flex-col gap-1">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
-                              prod.inStock
-                                ? 'bg-emerald-950/90 text-emerald-400 border border-emerald-500/40'
-                                : 'bg-red-950/90 text-red-400 border border-red-500/40'
-                            }`}
-                          >
-                            {prod.inStock ? `${prod.stockQuantity ?? 10} un. em estoque` : 'Esgotado'}
-                          </span>
-
-                          {isLowStock && prod.inStock && (
-                            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-amber-950/90 text-amber-300 border border-amber-500/40 flex items-center gap-1">
-                              <AlertTriangle size={10} />
-                              <span>Estoque Baixo</span>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Visibilidade na Home */}
-                        <div className="absolute top-3 right-3">
-                          <button
-                            onClick={() => handleToggleProductVisibility(prod.id, !(prod.showOnHome ?? true))}
-                            className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase flex items-center gap-1 transition ${
-                              prod.showOnHome !== false
-                                ? 'bg-black/80 text-brand-gold border border-brand-gold/40'
-                                : 'bg-black/80 text-zinc-400 border border-white/10'
-                            }`}
-                            title={prod.showOnHome !== false ? 'Visível na Home' : 'Oculto na Home'}
-                          >
-                            {prod.showOnHome !== false ? <Eye size={11} /> : <EyeOff size={11} />}
-                            <span>{prod.showOnHome !== false ? 'Na Home' : 'Oculto'}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Informações */}
-                      <div className="p-4 space-y-2">
-                        <span className="text-[10px] font-mono text-brand-gold uppercase tracking-wider">
-                          {prod.category}
-                        </span>
-                        <h3 className="font-display text-sm font-bold text-brand-cream leading-snug">
-                          {prod.name}
-                        </h3>
-                        <p className="text-xs text-brand-cream/60 line-clamp-2 leading-relaxed">
-                          {prod.description}
-                        </p>
-
-                        <div className="pt-2 flex items-baseline gap-2">
-                          <span className="font-display text-base font-bold text-brand-gold">
-                            {formatBRL(prod.priceInCents)}
-                          </span>
-                          {prod.compareAtPriceInCents && (
-                            <span className="text-xs text-brand-cream/40 line-through font-mono">
-                              {formatBRL(prod.compareAtPriceInCents)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Rodapé de Ações */}
-                    <div className="p-4 border-t border-white/5 flex items-center justify-between gap-2 bg-black/40">
-                      <button
-                        onClick={() => handleToggleProductStock(prod.id, !prod.inStock)}
-                        className="text-[11px] font-mono text-brand-cream/70 hover:text-brand-gold underline"
-                      >
-                        {prod.inStock ? 'Marcar Esgotado' : 'Marcar Em Estoque'}
-                      </button>
-
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleOpenEditProduct(prod)}
-                          className="p-1.5 rounded border border-white/10 hover:border-brand-gold text-brand-cream/80 hover:text-brand-gold transition"
-                          title="Editar Produto"
-                        >
-                          <Edit2 size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleOpenDeleteProduct(prod)}
-                          className="p-1.5 rounded border border-red-500/20 text-red-400 hover:bg-red-950/40 transition"
-                          title="Excluir Produto"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
+                  <div className="rounded border border-dashed border-white/15 p-12 text-center bg-black/30">
+                    <p className="text-sm font-mono text-brand-cream/50">
+                      {productSubTab === 'beverages'
+                        ? 'Nenhuma bebida cadastrada no bar ou frigobar.'
+                        : 'Nenhum cosmético ou produto cadastrado no catálogo.'}
+                    </p>
+                    <button
+                      onClick={handleOpenNewProduct}
+                      className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-brand-gold hover:text-brand-black text-brand-cream text-xs font-mono rounded transition"
+                    >
+                      <Plus size={12} />
+                      <span>{productSubTab === 'beverages' ? 'Cadastrar Primeira Bebida' : 'Cadastrar Primeiro Produto'}</span>
+                    </button>
                   </div>
                 );
-              })}
-            </div>
+              }
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {currentList.map((prod) => {
+                    const isLowStock =
+                      prod.stockQuantity !== undefined &&
+                      prod.minStockAlert !== undefined &&
+                      prod.stockQuantity <= prod.minStockAlert;
+
+                    const isBeverage = prod.productType === 'beverage';
+
+                    return (
+                      <div
+                        key={prod.id}
+                        className="rounded border border-white/10 bg-[#141414] overflow-hidden flex flex-col justify-between hover:border-brand-gold/40 transition"
+                      >
+                        <div>
+                          {/* Foto */}
+                          <div className="relative aspect-square w-full bg-black/60 border-b border-white/10">
+                            <Image
+                              src={prod.imageUrl}
+                              alt={prod.name}
+                              fill
+                              sizes="(max-width: 640px) 100vw, 300px"
+                              className="object-cover"
+                            />
+
+                            {/* Badges Flutuantes */}
+                            <div className="absolute top-3 left-3 flex flex-col gap-1">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                                  prod.inStock
+                                    ? 'bg-emerald-950/90 text-emerald-400 border border-emerald-500/40'
+                                    : 'bg-red-950/90 text-red-400 border border-red-500/40'
+                                }`}
+                              >
+                                {prod.inStock ? `${prod.stockQuantity ?? 10} un. em estoque` : 'Esgotado'}
+                              </span>
+
+                              {isLowStock && prod.inStock && (
+                                <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-amber-950/90 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                                  <AlertTriangle size={10} />
+                                  <span>Estoque Baixo</span>
+                                </span>
+                              )}
+
+                              {isBeverage && prod.volumeMl && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-brand-gold/20 text-brand-gold border border-brand-gold/30">
+                                  {prod.volumeMl}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Visibilidade / Tipo */}
+                            <div className="absolute top-3 right-3">
+                              {!isBeverage ? (
+                                <button
+                                  onClick={() => handleToggleProductVisibility(prod.id, !(prod.showOnHome ?? true))}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase flex items-center gap-1 transition ${
+                                    prod.showOnHome !== false
+                                      ? 'bg-black/80 text-brand-gold border border-brand-gold/40'
+                                      : 'bg-black/80 text-zinc-400 border border-white/10'
+                                  }`}
+                                  title={prod.showOnHome !== false ? 'Visível na Home' : 'Oculto na Home'}
+                                >
+                                  {prod.showOnHome !== false ? <Eye size={11} /> : <EyeOff size={11} />}
+                                  <span>{prod.showOnHome !== false ? 'Na Home' : 'Oculto'}</span>
+                                </button>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-black/80 text-brand-cream/70 border border-white/10">
+                                  Bar & Balcão
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Informações */}
+                          <div className="p-4 space-y-2">
+                            <span className="text-[10px] font-mono text-brand-gold uppercase tracking-wider">
+                              {prod.category}
+                            </span>
+                            <h3 className="font-display text-sm font-bold text-brand-cream leading-snug">
+                              {prod.name}
+                            </h3>
+                            <p className="text-xs text-brand-cream/60 line-clamp-2 leading-relaxed">
+                              {prod.description}
+                            </p>
+
+                            <div className="pt-2 flex items-baseline gap-2">
+                              <span className="font-display text-base font-bold text-brand-gold">
+                                {formatBRL(prod.priceInCents)}
+                              </span>
+                              {prod.compareAtPriceInCents && (
+                                <span className="text-xs text-brand-cream/40 line-through font-mono">
+                                  {formatBRL(prod.compareAtPriceInCents)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Rodapé de Ações */}
+                        <div className="p-3 border-t border-white/5 flex items-center justify-between gap-2 bg-black/40">
+                          {isBeverage ? (
+                            /* Ajuste Rápido de Estoque (+/-) para Bebidas */
+                            <div className="flex items-center gap-1.5 bg-black/60 rounded border border-white/10 px-2 py-1">
+                              <span className="text-[10px] font-mono text-brand-cream/60 mr-1">Qtd:</span>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickAdjustStock(prod.id, -1)}
+                                disabled={(prod.stockQuantity ?? 0) <= 0}
+                                className="w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/15 text-brand-cream disabled:opacity-30 transition"
+                                title="Vendido / Consumido (-1 un)"
+                              >
+                                <Minus size={11} />
+                              </button>
+                              <span className="text-xs font-mono font-bold text-brand-gold min-w-[24px] text-center">
+                                {prod.stockQuantity ?? 0}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickAdjustStock(prod.id, 1)}
+                                className="w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/15 text-brand-cream transition"
+                                title="Reposto no estoque (+1 un)"
+                              >
+                                <Plus size={11} />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleToggleProductStock(prod.id, !prod.inStock)}
+                              className="text-[11px] font-mono text-brand-cream/70 hover:text-brand-gold underline"
+                            >
+                              {prod.inStock ? 'Marcar Esgotado' : 'Marcar Em Estoque'}
+                            </button>
+                          )}
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenEditProduct(prod)}
+                              className="p-1.5 rounded border border-white/10 hover:border-brand-gold text-brand-cream/80 hover:text-brand-gold transition"
+                              title="Editar Produto"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleOpenDeleteProduct(prod)}
+                              className="p-1.5 rounded border border-red-500/20 text-red-400 hover:bg-red-950/40 transition"
+                              title="Excluir Produto"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -977,6 +1120,7 @@ export default function AdminPage() {
       <ProductModal
         isOpen={isProductModalOpen}
         product={selectedProductForEdit}
+        initialType={productSubTab === 'beverages' ? 'beverage' : 'cosmetic'}
         onClose={() => setIsProductModalOpen(false)}
         onSave={handleSaveProduct}
       />

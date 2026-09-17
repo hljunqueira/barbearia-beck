@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
-import { Clock, Eye, Images } from 'lucide-react';
+import { Clock, Eye, Images, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Service } from '@/types';
 import { formatBRL } from '@/lib/format';
 import { whatsappLink } from '@/lib/site';
@@ -19,8 +20,29 @@ export const ServiceCard = ({ service, onOpenGallery, className }: ServiceCardPr
   const isPopular = Boolean(service.popular);
   const contactMessage = `Olá! Gostaria de agendar o serviço de *${service.name}* na Beck Barbearia.`;
   const whatsappUrl = whatsappLink(contactMessage);
-  const previewImage = service.gallery?.[0]?.url ?? service.image ?? '/images/gallery/fade-navalhado.jpg';
-  const photosCount = service.gallery?.length ?? 1;
+
+  const photos =
+    service.gallery && service.gallery.length > 0
+      ? service.gallery
+      : service.image
+      ? [{ url: service.image, title: service.name }]
+      : [];
+
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+
+  const currentPhotoUrl =
+    photos[activePhotoIndex]?.url || service.image || '/images/gallery/fade-navalhado.jpg';
+  const photosCount = photos.length || 1;
+
+  const handlePrevPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActivePhotoIndex((prev) => (prev - 1 + photos.length) % photos.length);
+  };
+
+  const handleNextPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActivePhotoIndex((prev) => (prev + 1) % photos.length);
+  };
 
   return (
     <article
@@ -68,17 +90,17 @@ export const ServiceCard = ({ service, onOpenGallery, className }: ServiceCardPr
           className="relative aspect-[16/10] w-full cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-brand-black transition-all duration-300 group-hover:border-brand-gold/60 focus:outline-none focus:ring-2 focus:ring-brand-gold"
         >
           <Image
-            src={previewImage}
+            src={currentPhotoUrl}
             alt={service.name}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover transition-transform duration-700 ease-out group-hover:scale-108"
+            className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
           />
 
           <div className="absolute inset-0 bg-gradient-to-t from-brand-black/90 via-black/20 to-transparent" />
 
           {/* Badges superiores na imagem */}
-          <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2">
+          <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2 z-10">
             <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-brand-black/70 px-2.5 py-1 text-[11px] font-medium text-brand-cream/90 backdrop-blur-md">
               <Clock className="h-3 w-3 text-brand-gold" />
               <span>{service.durationMinutes} min</span>
@@ -91,8 +113,44 @@ export const ServiceCard = ({ service, onOpenGallery, className }: ServiceCardPr
             )}
           </div>
 
+          {/* Indicadores de fotos (pontinhos) se houver mais de 1 */}
+          {photos.length > 1 && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/60 px-2 py-0.5 rounded-full backdrop-blur-sm z-10 pointer-events-none">
+              {photos.map((_, idx) => (
+                <span
+                  key={idx}
+                  className={`h-1.5 rounded-full transition-all ${
+                    idx === activePhotoIndex ? 'w-3 bg-brand-gold' : 'w-1.5 bg-white/40'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Setas de navegação rápida no card se houver mais de 1 foto */}
+          {photos.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrevPhoto}
+                aria-label="Foto anterior do corte"
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/70 hover:bg-black/95 text-brand-cream border border-white/20 flex items-center justify-center sm:opacity-0 group-hover:opacity-100 transition z-10 shadow-md"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={handleNextPhoto}
+                aria-label="Próxima foto do corte"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/70 hover:bg-black/95 text-brand-cream border border-white/20 flex items-center justify-center sm:opacity-0 group-hover:opacity-100 transition z-10 shadow-md"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </>
+          )}
+
           {/* Botão de Ver Fotos no rodapé da imagem */}
-          <div className="absolute inset-x-3 bottom-3 flex items-center justify-between">
+          <div className="absolute inset-x-3 bottom-3 flex items-center justify-between z-10">
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-gold/40 bg-brand-black/80 px-3 py-1.5 text-xs font-semibold text-brand-gold backdrop-blur-md transition-all duration-300 group-hover:bg-brand-gold group-hover:text-brand-black group-hover:scale-105">
               <Images className="h-3.5 w-3.5" />
               <span>Ver Fotos ({photosCount})</span>

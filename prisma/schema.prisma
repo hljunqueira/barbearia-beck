@@ -78,7 +78,9 @@ model Product {
   id                    String   @id @default(uuid())
   slug                  String   @unique
   name                  String
-  category              String   // pomada, oleo, balm, kit
+  category              String   // pomada, oleo, balm, kit, cerveja, refrigerante, energetico, agua, destilado
+  productType           String   @default("cosmetic") // cosmetic, beverage
+  volumeMl              String?  // ex: 350ml, Long Neck, 50ml
   description           String
   priceInCents          Int
   compareAtPriceInCents Int?
@@ -92,6 +94,7 @@ model Product {
   updatedAt             DateTime @updatedAt
 
   @@index([category])
+  @@index([productType])
   @@index([inStock])
 }
 
@@ -107,6 +110,7 @@ model Service {
   popular         Boolean  @default(false)
   badge           String?
   image           String?
+  gallery         Json?    // [{ url: string, title?: string }]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
