@@ -5,6 +5,10 @@ import { getPlanRules, getPlans } from '@/app/actions/getPlans';
 import { getServices } from '@/app/actions/getServices';
 import { getProducts } from '@/app/actions/getProducts';
 import { getSiteContent, getAboutContent } from '@/app/actions/siteContentActions';
+import { listBarbersAction } from '@/app/actions/barberActions';
+import { whatsappLink } from '@/lib/site';
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
+import { BrandButton } from '@/components/BrandButton';
 import HeroParallax from '@/components/HeroParallax';
 import { PromotionBanner } from '@/components/PromotionBanner';
 import { Navbar } from '@/components/Navbar';
@@ -48,14 +52,17 @@ const FALLBACK_EXPERIENCE_ITEMS = [
  * Conectado 100% ao PostgreSQL Supabase. Zero mocks em memória.
  */
 const App = async () => {
-  const [plans, planRules, services, products, siteContent, aboutContent] = await Promise.all([
+  const [plans, planRules, services, products, siteContent, aboutContent, barbers] = await Promise.all([
     getPlans(),
     getPlanRules(),
     getServices(),
     getProducts(),
     getSiteContent(),
     getAboutContent(),
+    listBarbersAction().catch(() => []),
   ]);
+
+  const activeBarbers = barbers.filter((b) => b.active);
 
   const experienceList =
     siteContent?.experienceItemsJson && siteContent.experienceItemsJson.length > 0
@@ -190,16 +197,116 @@ const App = async () => {
                     </p>
                   </div>
 
-                  <div className="pt-4 border-t border-white/5">
-                    <p className="font-display text-xs font-bold uppercase text-brand-cream">
-                      {aboutContent.founderName}
-                    </p>
-                    <p className="text-[11px] font-mono text-brand-gold">
-                      {aboutContent.founderRole}
-                    </p>
+                  <div className="pt-4 border-t border-white/5 flex items-center gap-3">
+                    {aboutContent.founderPhoto && (
+                      <div className="relative w-10 h-10 rounded-full overflow-hidden border border-brand-gold/40 shrink-0 bg-black">
+                        <Image
+                          src={aboutContent.founderPhoto}
+                          alt={aboutContent.founderName || 'Fundador'}
+                          fill
+                          sizes="40px"
+                          className="object-cover"
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-display text-xs font-bold uppercase text-brand-cream">
+                        {aboutContent.founderName}
+                      </p>
+                      <p className="text-[11px] font-mono text-brand-gold">
+                        {aboutContent.founderRole}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* Equipe & Mestres Barbeiros */}
+              {activeBarbers.length > 0 && (
+                <div className="mt-16 pt-12 border-t border-white/10 max-w-4xl mx-auto">
+                  <div className="text-center mb-8">
+                    <span className="font-mono text-xs uppercase tracking-widest text-brand-gold block font-semibold">
+                      Mestres da Navalha
+                    </span>
+                    <h3 className="font-display text-xl sm:text-2xl font-bold uppercase text-brand-cream mt-1">
+                      Nossa Equipe de Barbeiros
+                    </h3>
+                    <p className="text-xs text-brand-cream/60 mt-1">
+                      Conheça os profissionais por trás de cada atendimento de respeito.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    {activeBarbers.map((barber) => (
+                      <div
+                        key={barber.id}
+                        className="rounded border border-white/10 bg-[#141414] p-5 hover:border-brand-gold/40 transition flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-start gap-4">
+                            <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-brand-gold/30 bg-black shrink-0 flex items-center justify-center">
+                              {barber.photoUrl && barber.photoUrl !== '/images/barber-1.webp' ? (
+                                <Image
+                                  src={barber.photoUrl}
+                                  alt={barber.name}
+                                  fill
+                                  sizes="64px"
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <span className="font-display text-lg font-bold text-brand-gold">
+                                  {barber.name.slice(0, 2).toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[10px] font-mono uppercase tracking-wider text-brand-gold block">
+                                {barber.role}
+                              </span>
+                              <h4 className="font-display text-base font-bold text-brand-cream truncate">
+                                {barber.name}
+                              </h4>
+                              {barber.phone && (
+                                <p className="text-[11px] font-mono text-brand-cream/50 mt-0.5">
+                                  {barber.phone}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {barber.bio && (
+                            <p className="mt-4 pt-3 border-t border-white/5 text-xs text-brand-cream/70 leading-relaxed line-clamp-4 font-light">
+                              {barber.bio}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="mt-5 pt-3 border-t border-white/5 flex items-center justify-between gap-2">
+                          <BrandButton
+                            href={whatsappLink(
+                              `Olá, ${barber.name}! Vi seu perfil na Beck Barbearia e gostaria de agendar um horário.`,
+                              barber.phone ?? undefined
+                            )}
+                            size="sm"
+                            className="text-[11px] py-1.5 px-3"
+                          >
+                            <WhatsAppIcon size={14} className="text-[#25D366] shrink-0" />
+                            <span>WhatsApp</span>
+                          </BrandButton>
+
+                          <Link
+                            href="/sobre"
+                            className="text-[11px] font-mono text-brand-cream/60 hover:text-brand-gold transition underline"
+                          >
+                            Ver Trajetória Completa &rarr;
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         )}

@@ -95,7 +95,7 @@ export function TeamMemberModal({
       setName('');
       setPhone('');
       setRoleTitle('Barbeiro Especialista');
-      setPhotoUrl('/images/barber-1.webp');
+      setPhotoUrl('');
       setBio('');
       setActive(true);
       setUsername('');

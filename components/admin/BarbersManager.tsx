@@ -312,8 +312,8 @@ export function BarbersManager() {
               <div>
                 {/* Topo do Card com Foto / Avatar */}
                 <div className="flex items-start gap-4">
-                  <div className="relative h-16 w-16 shrink-0 rounded-full border border-brand-gold/30 bg-black overflow-hidden shadow-inner">
-                    {barber.photoUrl ? (
+                  <div className="relative h-16 w-16 shrink-0 rounded-full border border-brand-gold/30 bg-black overflow-hidden shadow-inner flex items-center justify-center">
+                    {barber.photoUrl && barber.photoUrl !== '/images/barber-1.webp' ? (
                       <Image
                         src={barber.photoUrl}
                         alt={barber.name}
@@ -323,7 +323,7 @@ export function BarbersManager() {
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center font-display text-lg font-bold text-brand-gold bg-brand-black">
-                        {barber.name.charAt(0).toUpperCase()}
+                        {barber.name.slice(0, 2).toUpperCase()}
                       </div>
                     )}
                   </div>

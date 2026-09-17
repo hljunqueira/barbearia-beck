@@ -124,7 +124,7 @@ export function TeamManager({ currentUsername = 'Henrique' }: TeamManagerProps) 
           name: data.name,
           role: data.roleTitle || 'Barbeiro Especialista',
           phone: data.phone,
-          photoUrl: data.photoUrl || '/images/barber-1.webp',
+          photoUrl: data.photoUrl?.trim() || undefined,
           bio: data.bio,
           active: data.active ?? true,
         });
@@ -358,14 +358,20 @@ export function TeamManager({ currentUsername = 'Henrique' }: TeamManagerProps) 
                       className="p-4 rounded border border-white/10 bg-[#141414] hover:border-brand-gold/40 transition flex flex-col justify-between"
                     >
                       <div className="flex items-start gap-3">
-                        <div className="relative w-14 h-14 rounded overflow-hidden bg-black/60 border border-white/10 shrink-0">
-                          <Image
-                            src={barber.photoUrl || '/images/barber-1.webp'}
-                            alt={barber.name}
-                            fill
-                            sizes="56px"
-                            className="object-cover"
-                          />
+                        <div className="relative w-14 h-14 rounded overflow-hidden bg-black/60 border border-brand-gold/30 shrink-0 flex items-center justify-center">
+                          {barber.photoUrl && barber.photoUrl !== '/images/barber-1.webp' ? (
+                            <Image
+                              src={barber.photoUrl}
+                              alt={barber.name}
+                              fill
+                              sizes="56px"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <span className="font-display text-base font-bold text-brand-gold">
+                              {barber.name.slice(0, 2).toUpperCase()}
+                            </span>
+                          )}
                         </div>
 
                         <div className="min-w-0 flex-1">

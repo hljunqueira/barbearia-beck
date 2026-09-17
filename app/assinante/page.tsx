@@ -548,14 +548,20 @@ export default function AssinantePage() {
                                 : 'border-white/10 bg-black/50 text-brand-cream/70 hover:border-white/20'
                             }`}
                           >
-                            <div className="relative w-11 h-11 rounded overflow-hidden bg-black/60 shrink-0">
-                              <Image
-                                src={b.photoUrl || '/images/barber-1.webp'}
-                                alt={b.name}
-                                fill
-                                sizes="44px"
-                                className="object-cover"
-                              />
+                            <div className="relative w-11 h-11 rounded overflow-hidden bg-black/60 border border-brand-gold/30 shrink-0 flex items-center justify-center">
+                              {b.photoUrl && b.photoUrl !== '/images/barber-1.webp' ? (
+                                <Image
+                                  src={b.photoUrl}
+                                  alt={b.name}
+                                  fill
+                                  sizes="44px"
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <span className="font-display text-sm font-bold text-brand-gold">
+                                  {b.name.slice(0, 2).toUpperCase()}
+                                </span>
+                              )}
                             </div>
                             <div className="min-w-0">
                               <p className="font-display text-xs font-bold text-brand-cream truncate">
