@@ -10,8 +10,6 @@ import {
   LogOut,
   User,
   XCircle,
-  HelpCircle,
-  BookOpen,
 } from 'lucide-react';
 import type { Appointment, Subscription, Barber } from '@/types';
 import {
@@ -26,7 +24,6 @@ import { getTimeSlotsForDay, isAllowedClubDay } from '@/lib/data/subscriptions';
 import { whatsappLink } from '@/lib/site';
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon';
 import { BrandButton } from '@/components/BrandButton';
-import { SubscriberManualModal } from '@/components/SubscriberManualModal';
 
 // Formatação estrita sem problema de timezone
 const formatLocalDate = (d: Date): string => {
@@ -43,8 +40,15 @@ export default function AssinantePage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
-  // Modal do Manual do Assinante
-  const [isManualOpen, setIsManualOpen] = useState(false);
+  // Notificação de Assinatura Pendente (ao tentar logar)
+  const [pendingNotice, setPendingNotice] = useState<{
+    customerName: string;
+    customerPhone: string;
+    planName: string;
+  } | null>(null);
+
+  // Confirmação de Cadastro de Solicitação Pendente
+  const [submittedPendingSub, setSubmittedPendingSub] = useState<Subscription | null>(null);
 
   // Modo de Autenticação: Login ou Novo Cadastro
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -91,10 +95,24 @@ export default function AssinantePage() {
   const handleLogin = async (phoneOrEmail: string) => {
     setLoading(true);
     setError(null);
+    setPendingNotice(null);
     try {
       const sub = await findCustomerSubscription(phoneOrEmail);
       if (!sub) {
-        setError('Nenhuma assinatura encontrada. Verifique o número ou cadastre-se ao lado.');
+        setError('Nenhuma assinatura encontrada. Verifique o número ou solicite sua adesão ao lado.');
+        setSubscription(null);
+      } else if (sub.status === 'pending') {
+        setSubscription(null);
+        setPendingNotice({
+          customerName: sub.customerName,
+          customerPhone: sub.customerPhone,
+          planName: sub.planName,
+        });
+      } else if (sub.status === 'canceled') {
+        setError(`A assinatura do plano ${sub.planName} está cancelada. Fale conosco no WhatsApp para reativar.`);
+        setSubscription(null);
+      } else if (sub.status === 'past_due') {
+        setError(`A assinatura do plano ${sub.planName} possui pendência financeira. Fale conosco no WhatsApp para regularizar.`);
         setSubscription(null);
       } else {
         setSubscription(sub);
@@ -130,9 +148,15 @@ export default function AssinantePage() {
       if (!res.ok || !res.subscription) {
         setRegError(res.error || 'Falha ao registrar cadastro.');
       } else {
-        setSubscription(res.subscription);
-        localStorage.setItem('beck_subscriber_phone', res.subscription.customerPhone);
-        setAppointments([]);
+        if (res.subscription.status === 'pending') {
+          setSubmittedPendingSub(res.subscription);
+          setSubscription(null);
+        } else {
+          setSubscription(res.subscription);
+          localStorage.setItem('beck_subscriber_phone', res.subscription.customerPhone);
+          const apts = await listAppointments(res.subscription.id);
+          setAppointments(apts);
+        }
       }
     } catch {
       setRegError('Erro ao processar cadastro. Tente novamente.');
@@ -248,16 +272,6 @@ export default function AssinantePage() {
           </Link>
 
           <div className="flex items-center gap-3">
-            {/* Botão Manual do Assinante */}
-            <button
-              type="button"
-              onClick={() => setIsManualOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-brand-gold/40 bg-brand-gold/10 text-brand-gold hover:bg-brand-gold hover:text-brand-black text-xs font-mono uppercase tracking-wider transition"
-            >
-              <BookOpen size={13} />
-              <span>Manual do Clube</span>
-            </button>
-
             <Link
               href="/"
               className="font-mono text-xs uppercase tracking-wider text-brand-cream/60 transition-colors hover:text-brand-gold hidden sm:inline"
@@ -285,161 +299,250 @@ export default function AssinantePage() {
         {/* ======================================================== */}
         {!subscription ? (
           <div className="max-w-lg mx-auto space-y-6">
-            <div className="text-center space-y-2">
-              <h1 className="font-display text-2xl font-bold uppercase text-brand-cream tracking-wide">
-                Portal do Assinante
-              </h1>
-              <p className="text-xs text-brand-cream/60">
-                Acesse sua conta para agendar horários exclusivos de segunda a quarta-feira
-              </p>
-            </div>
+            {submittedPendingSub ? (
+              <div className="p-6 sm:p-8 rounded-lg border border-brand-gold/40 bg-[#141414] shadow-2xl text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                <div className="w-12 h-12 rounded-full border border-brand-gold/40 bg-brand-gold/10 text-brand-gold flex items-center justify-center mx-auto">
+                  <CheckCircle2 size={24} />
+                </div>
 
-            <div className="p-6 sm:p-8 rounded border border-white/15 bg-[#141414] shadow-2xl space-y-6">
-              {/* Abas Login / Cadastro */}
-              <div className="flex border-b border-white/10 pb-3">
-                <button
-                  onClick={() => setAuthMode('login')}
-                  className={`flex-1 text-xs font-mono uppercase tracking-wider pb-2 border-b-2 transition ${
-                    authMode === 'login'
-                      ? 'border-brand-gold text-brand-gold font-bold'
-                      : 'border-transparent text-brand-cream/50 hover:text-brand-cream'
-                  }`}
-                >
-                  Já sou Assinante
-                </button>
-                <button
-                  onClick={() => setAuthMode('register')}
-                  className={`flex-1 text-xs font-mono uppercase tracking-wider pb-2 border-b-2 transition ${
-                    authMode === 'register'
-                      ? 'border-brand-gold text-brand-gold font-bold'
-                      : 'border-transparent text-brand-cream/50 hover:text-brand-cream'
-                  }`}
-                >
-                  Criar Minha Assinatura
-                </button>
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-brand-gold font-semibold">
+                    Solicitação Recebida
+                  </span>
+                  <h2 className="font-display text-xl sm:text-2xl font-bold uppercase text-brand-cream mt-1">
+                    Cadastro Enviado com Sucesso!
+                  </h2>
+                  <p className="text-xs sm:text-sm text-brand-cream/70 mt-2 max-w-md mx-auto leading-relaxed font-sans">
+                    Olá, <strong className="text-brand-cream">{submittedPendingSub.customerName}</strong>! Seu pedido de adesão ao plano <strong className="text-brand-gold">{submittedPendingSub.planName}</strong> foi registrado no sistema da Beck Barbearia.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded border border-white/10 bg-black/50 text-xs text-brand-cream/70 space-y-1.5 text-left max-w-md mx-auto font-mono">
+                  <p><span className="text-brand-cream/40">Plano:</span> <span className="text-brand-cream font-semibold">{submittedPendingSub.planName}</span></p>
+                  <p><span className="text-brand-cream/40">WhatsApp:</span> <span className="text-brand-cream font-semibold">{submittedPendingSub.customerPhone}</span></p>
+                  <p className="text-amber-300/90 pt-1 text-[11px]">
+                    Status: Aguardando aprovação do barbeiro para liberação da agenda.
+                  </p>
+                </div>
+
+                <p className="text-xs text-brand-cream/60 max-w-md mx-auto leading-relaxed">
+                  O barbeiro entrará em contato via WhatsApp para confirmar seus dados e ativar sua conta. Para agilizar sua liberação agora mesmo, clique no botão abaixo:
+                </p>
+
+                <div className="pt-2 flex flex-col gap-2.5 max-w-md mx-auto">
+                  <BrandButton
+                    href={whatsappLink(
+                      `Olá! Acabei de enviar meu cadastro para o plano ${submittedPendingSub.planName} no Portal do Assinante. Meu nome é ${submittedPendingSub.customerName} (${submittedPendingSub.customerPhone}). Aguardo a confirmação para ativação do meu plano!`
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-3 text-xs w-full justify-center"
+                  >
+                    <WhatsAppIcon size={16} className="text-[#25D366] shrink-0" />
+                    <span>Avisar no WhatsApp da Barbearia</span>
+                  </BrandButton>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubmittedPendingSub(null);
+                      setAuthMode('login');
+                      setIdentifier(submittedPendingSub.customerPhone);
+                    }}
+                    className="px-4 py-2.5 rounded border border-white/10 text-xs font-mono uppercase tracking-wider text-brand-cream/60 hover:text-brand-cream hover:bg-white/5 transition"
+                  >
+                    Voltar à Tela de Identificação
+                  </button>
+                </div>
               </div>
+            ) : (
+              <>
+                <div className="text-center space-y-2">
+                  <h1 className="font-display text-2xl font-bold uppercase text-brand-cream tracking-wide">
+                    Portal do Assinante
+                  </h1>
+                  <p className="text-xs text-brand-cream/60">
+                    Acesse sua conta para agendar horários exclusivos de segunda a quarta-feira
+                  </p>
+                </div>
 
-              {/* Formulário Login */}
-              {authMode === 'login' && (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (identifier.trim()) handleLogin(identifier.trim());
-                  }}
-                  className="space-y-4"
-                >
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                      Telefone com DDD ou E-mail cadastrado
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder="Ex: 48999999999 ou seu@email.com"
-                      className="w-full bg-black/70 border border-white/15 rounded px-3 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
-                    />
-                  </div>
-
-                  {error && (
-                    <div className="p-3 rounded bg-red-950/80 border border-red-500/40 text-xs text-red-200">
-                      {error}
-                    </div>
-                  )}
-
-                  <BrandButton type="submit" disabled={loading} size="full" className="py-2.5 text-xs">
-                    {loading ? 'Identificando Assinatura...' : 'Acessar Minha Agenda'}
-                  </BrandButton>
-                </form>
-              )}
-
-              {/* Formulário Cadastro */}
-              {authMode === 'register' && (
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                      Nome Completo *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={regName}
-                      onChange={(e) => setRegName(e.target.value)}
-                      placeholder="Ex: João da Silva"
-                      className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                        WhatsApp com DDD *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={regPhone}
-                        onChange={(e) => setRegPhone(e.target.value)}
-                        placeholder="48999999999"
-                        className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                        Aniversário (Dia/Mês)
-                      </label>
-                      <input
-                        type="text"
-                        value={regBirthDate}
-                        onChange={(e) => setRegBirthDate(e.target.value)}
-                        placeholder="Ex: 15/10"
-                        className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                      E-mail (opcional)
-                    </label>
-                    <input
-                      type="email"
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
-                      placeholder="joao@email.com"
-                      className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
-                      Plano Escolhido *
-                    </label>
-                    <select
-                      value={regPlan}
-                      onChange={(e) => setRegPlan(e.target.value as any)}
-                      className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                <div className="p-6 sm:p-8 rounded border border-white/15 bg-[#141414] shadow-2xl space-y-6">
+                  {/* Abas Login / Cadastro */}
+                  <div className="flex border-b border-white/10 pb-3">
+                    <button
+                      onClick={() => setAuthMode('login')}
+                      className={`flex-1 text-xs font-mono uppercase tracking-wider pb-2 border-b-2 transition ${
+                        authMode === 'login'
+                          ? 'border-brand-gold text-brand-gold font-bold'
+                          : 'border-transparent text-brand-cream/50 hover:text-brand-cream'
+                      }`}
                     >
-                      <option value="corte-barba">Corte + Barba Completo (R$ 159,90/mês)</option>
-                      <option value="corte">Corte Ilimitado (R$ 99,90/mês)</option>
-                      <option value="barba">Barboterapia Ilimitada (R$ 89,90/mês)</option>
-                    </select>
+                      Já sou Assinante
+                    </button>
+                    <button
+                      onClick={() => setAuthMode('register')}
+                      className={`flex-1 text-xs font-mono uppercase tracking-wider pb-2 border-b-2 transition ${
+                        authMode === 'register'
+                          ? 'border-brand-gold text-brand-gold font-bold'
+                          : 'border-transparent text-brand-cream/50 hover:text-brand-cream'
+                      }`}
+                    >
+                      Criar Minha Assinatura
+                    </button>
                   </div>
 
-                  {regError && (
-                    <div className="p-3 rounded bg-red-950/80 border border-red-500/40 text-xs text-red-200">
-                      {regError}
-                    </div>
+                  {/* Formulário Login */}
+                  {authMode === 'login' && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (identifier.trim()) handleLogin(identifier.trim());
+                      }}
+                      className="space-y-4"
+                    >
+                      <div>
+                        <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                          Telefone com DDD ou E-mail cadastrado
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={identifier}
+                          onChange={(e) => setIdentifier(e.target.value)}
+                          placeholder="Ex: 48999999999 ou seu@email.com"
+                          className="w-full bg-black/70 border border-white/15 rounded px-3 py-2.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none transition"
+                        />
+                      </div>
+
+                      {pendingNotice && (
+                        <div className="p-4 rounded border border-amber-500/40 bg-amber-950/40 space-y-3">
+                          <div className="flex items-start gap-2.5">
+                            <Clock size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                              <h4 className="text-xs font-bold font-display uppercase tracking-wider text-amber-200">
+                                Assinatura em Análise
+                              </h4>
+                              <p className="text-[11px] text-amber-200/80 mt-1 leading-relaxed">
+                                Olá, <strong>{pendingNotice.customerName}</strong>! Sua solicitação para o <strong>{pendingNotice.planName}</strong> foi recebida e está aguardando confirmação do barbeiro.
+                              </p>
+                            </div>
+                          </div>
+
+                          <BrandButton
+                            href={whatsappLink(
+                              `Olá! Minha solicitação para o plano ${pendingNotice.planName} está pendente no Portal do Assinante (${pendingNotice.customerPhone}). Gostaria de agilizar a ativação da minha conta!`
+                            )}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            size="sm"
+                            className="w-full text-xs py-2"
+                          >
+                            <WhatsAppIcon size={14} className="text-[#25D366] shrink-0" />
+                            <span>Falar no WhatsApp da Barbearia</span>
+                          </BrandButton>
+                        </div>
+                      )}
+
+                      {error && (
+                        <div className="p-3 rounded bg-red-950/80 border border-red-500/40 text-xs text-red-200">
+                          {error}
+                        </div>
+                      )}
+
+                      <BrandButton type="submit" disabled={loading} size="full" className="py-2.5 text-xs">
+                        {loading ? 'Identificando Assinatura...' : 'Acessar Minha Agenda'}
+                      </BrandButton>
+                    </form>
                   )}
 
-                  <BrandButton type="submit" disabled={regLoading} size="full" className="py-2.5 text-xs">
-                    {regLoading ? 'Ativando...' : 'Confirmar e Acessar Agenda'}
-                  </BrandButton>
-                </form>
-              )}
-            </div>
+                  {/* Formulário Cadastro */}
+                  {authMode === 'register' && (
+                    <form onSubmit={handleRegister} className="space-y-4">
+                      <div>
+                        <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                          Nome Completo *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={regName}
+                          onChange={(e) => setRegName(e.target.value)}
+                          placeholder="Ex: João da Silva"
+                          className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                            WhatsApp com DDD *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={regPhone}
+                            onChange={(e) => setRegPhone(e.target.value)}
+                            placeholder="48999999999"
+                            className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                            Aniversário (Dia/Mês)
+                          </label>
+                          <input
+                            type="text"
+                            value={regBirthDate}
+                            onChange={(e) => setRegBirthDate(e.target.value)}
+                            placeholder="Ex: 15/10"
+                            className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                          E-mail (opcional)
+                        </label>
+                        <input
+                          type="email"
+                          value={regEmail}
+                          onChange={(e) => setRegEmail(e.target.value)}
+                          placeholder="joao@email.com"
+                          className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-mono uppercase tracking-wider text-brand-cream/70 mb-1">
+                          Plano Escolhido *
+                        </label>
+                        <select
+                          value={regPlan}
+                          onChange={(e) => setRegPlan(e.target.value as any)}
+                          className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream focus:border-brand-gold focus:outline-none"
+                        >
+                          <option value="corte-barba">Corte + Barba Completo (R$ 159,90/mês)</option>
+                          <option value="corte">Corte Ilimitado (R$ 99,90/mês)</option>
+                          <option value="barba">Barboterapia Ilimitada (R$ 89,90/mês)</option>
+                        </select>
+                      </div>
+
+                      {regError && (
+                        <div className="p-3 rounded bg-red-950/80 border border-red-500/40 text-xs text-red-200">
+                          {regError}
+                        </div>
+                      )}
+
+                      <BrandButton type="submit" disabled={regLoading} size="full" className="py-2.5 text-xs">
+                        {regLoading ? 'Enviando Solicitação...' : 'Solicitar Minha Assinatura'}
+                      </BrandButton>
+                    </form>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           /* ======================================================== */
@@ -465,14 +568,6 @@ export default function AssinantePage() {
                 <span className="px-3 py-1 rounded text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 w-fit">
                   Assinatura Ativa
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setIsManualOpen(true)}
-                  className="text-[11px] font-mono text-brand-gold hover:underline flex items-center gap-1"
-                >
-                  <HelpCircle size={12} />
-                  <span>Consultar Regras do Clube</span>
-                </button>
               </div>
             </div>
 
@@ -727,12 +822,6 @@ export default function AssinantePage() {
           </div>
         )}
       </main>
-
-      {/* MODAL 4-GRID DO MANUAL DO ASSINANTE */}
-      <SubscriberManualModal
-        isOpen={isManualOpen}
-        onClose={() => setIsManualOpen(false)}
-      />
     </div>
   );
 }

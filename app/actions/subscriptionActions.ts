@@ -210,7 +210,38 @@ export async function registerCustomerSubscriptionAction(data: {
     });
 
     if (existing) {
-      // Retorna a assinatura já existente
+      if (existing.status === 'canceled') {
+        const updated = await prisma.subscription.update({
+          where: { id: existing.id },
+          data: {
+            planSlug,
+            planName: planInfo.name,
+            priceInCents: planInfo.price,
+            status: 'pending',
+            customerName: rawName,
+            birthDate: data.birthDate?.trim() || existing.birthDate,
+          },
+        });
+        return {
+          ok: true,
+          subscription: {
+            id: updated.id,
+            customerName: updated.customerName,
+            customerPhone: updated.customerPhone,
+            customerEmail: updated.customerEmail,
+            planSlug: updated.planSlug as any,
+            planName: updated.planName,
+            priceInCents: updated.priceInCents,
+            status: updated.status as SubscriptionStatus,
+            startDate: updated.startDate,
+            nextBillingDate: updated.nextBillingDate,
+            birthDate: updated.birthDate || null,
+            notes: updated.notes || null,
+            preferredBarberId: updated.preferredBarberId || null,
+          },
+        };
+      }
+
       return {
         ok: true,
         subscription: {
@@ -238,7 +269,7 @@ export async function registerCustomerSubscriptionAction(data: {
       planSlug,
       planName: planInfo.name,
       priceInCents: planInfo.price,
-      status: 'active',
+      status: 'pending',
       birthDate: data.birthDate?.trim() || undefined,
     });
 
@@ -347,17 +378,33 @@ export async function updateSubscriptionStatus(
   status: SubscriptionStatus,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
+    const updateData: any = { status };
+    if (status === 'active') {
+      const now = new Date();
+      const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      updateData.startDate = now.toISOString().split('T')[0];
+      updateData.nextBillingDate = nextMonth.toISOString().split('T')[0];
+    }
+
     await prisma.subscription.update({
       where: { id },
-      data: { status },
+      data: updateData,
     });
 
     revalidatePath('/admin');
+    revalidatePath('/assinante');
     return { ok: true };
   } catch (error: any) {
     console.error('Erro ao atualizar status da assinatura:', error);
     return { ok: false, error: 'Assinatura não encontrada' };
   }
+}
+
+/**
+ * Aprova uma assinatura pendente (Admin).
+ */
+export async function approveSubscriptionAction(id: string): Promise<{ ok: boolean; error?: string }> {
+  return updateSubscriptionStatus(id, 'active');
 }
 
 

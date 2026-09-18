@@ -38,6 +38,7 @@ import type { Appointment, Product, Subscription, SubscriptionStatus, Barber } f
 import {
   listSubscriptions,
   updateSubscriptionStatus,
+  approveSubscriptionAction,
   createSubscription,
   updateSubscriptionDetails,
   deleteSubscriptionAction,
@@ -199,6 +200,7 @@ export default function AdminPage() {
   // GESTÃO DE ASSINANTES & CLIENTES
   // =========================================================
   const activeSubs = subscriptions.filter((s) => s.status === 'active');
+  const pendingSubs = subscriptions.filter((s) => s.status === 'pending');
   const totalMRR = activeSubs.reduce((acc, curr) => acc + curr.priceInCents, 0);
 
   const filteredSubscriptions = subscriptions.filter((s) => {
@@ -216,6 +218,27 @@ export default function AdminPage() {
       prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s))
     );
     notifySuccess('Status da assinatura atualizado.');
+  };
+
+  const handleApproveSub = async (id: string) => {
+    const res = await approveSubscriptionAction(id);
+    if (res.ok) {
+      setSubscriptions((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? {
+                ...s,
+                status: 'active',
+                startDate: new Date().toISOString().split('T')[0],
+                nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                  .toISOString()
+                  .split('T')[0],
+              }
+            : s
+        )
+      );
+      notifySuccess('Assinatura aprovada e ativada com sucesso!');
+    }
   };
 
   const handleOpenNewSub = () => {
@@ -518,6 +541,11 @@ export default function AdminPage() {
           >
             <Users size={14} />
             <span>Clientes & Assinaturas ({subscriptions.length})</span>
+            {pendingSubs.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                {pendingSubs.length} pendente{pendingSubs.length > 1 ? 's' : ''}
+              </span>
+            )}
           </button>
 
           <button
@@ -680,6 +708,29 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* Alerta de Assinaturas Pendentes de Aprovação */}
+            {pendingSubs.length > 0 && (
+              <div className="bg-amber-950/30 border border-amber-500/40 rounded p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-3 text-xs text-amber-200">
+                  <AlertCircle size={18} className="text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+                  <div>
+                    <strong className="text-amber-300 font-bold block sm:inline">
+                      {pendingSubs.length} solicitação{pendingSubs.length > 1 ? 'ões' : ''} de assinatura pendente{pendingSubs.length > 1 ? 's' : ''}:
+                    </strong>{' '}
+                    <span>
+                      Verifique os dados, converse com o cliente no WhatsApp para combinar o pagamento e aprove com 1 clique para liberar a agenda.
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setStatusFilter('pending')}
+                  className="px-3 py-1.5 text-xs font-mono uppercase tracking-wider font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 rounded transition shrink-0"
+                >
+                  Filtrar Pendentes ({pendingSubs.length})
+                </button>
+              </div>
+            )}
+
             {/* Barra de Filtro & Busca */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#141414] p-3 rounded border border-white/10">
               <div className="flex flex-wrap items-center gap-2">
@@ -689,6 +740,7 @@ export default function AdminPage() {
                   className="bg-black/70 border border-white/10 rounded px-3 py-1.5 text-xs text-brand-cream focus:border-brand-gold focus:outline-none font-mono"
                 >
                   <option value="all">Todos os Status ({subscriptions.length})</option>
+                  <option value="pending">Pendentes de Aprovação ({pendingSubs.length})</option>
                   <option value="active">Ativos ({activeSubs.length})</option>
                   <option value="past_due">Atrasados</option>
                   <option value="canceled">Cancelados</option>
@@ -767,11 +819,14 @@ export default function AdminPage() {
                             className={`rounded px-2 py-1 text-[10px] font-mono uppercase font-bold border ${
                               sub.status === 'active'
                                 ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/40'
+                                : sub.status === 'pending'
+                                ? 'bg-amber-950/80 text-amber-300 border-amber-500/40'
                                 : sub.status === 'past_due'
-                                ? 'bg-amber-950/80 text-amber-400 border-amber-500/40'
+                                ? 'bg-orange-950/80 text-orange-400 border-orange-500/40'
                                 : 'bg-red-950/80 text-red-400 border-red-500/40'
                             }`}
                           >
+                            <option value="pending">Pendente</option>
                             <option value="active">Ativo</option>
                             <option value="past_due">Atrasado</option>
                             <option value="canceled">Cancelado</option>
@@ -779,6 +834,43 @@ export default function AdminPage() {
                         </td>
                         <td className="p-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* Botão de Aprovação Rápida se Pendente */}
+                            {sub.status === 'pending' && (
+                              <button
+                                onClick={() => handleApproveSub(sub.id)}
+                                className="px-2 py-1.5 rounded bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-900 transition text-[10px] font-mono uppercase tracking-wider font-bold flex items-center gap-1 shadow-sm"
+                                title="Aprovar e ativar assinatura imediatamente"
+                              >
+                                <Check size={12} />
+                                <span>Aprovar</span>
+                              </button>
+                            )}
+
+                            {/* Botão WhatsApp com mensagem pré-formatada */}
+                            {(() => {
+                              const cleanPhone = sub.customerPhone.replace(/\D/g, '');
+                              const intlPhone =
+                                cleanPhone.length === 10 || cleanPhone.length === 11
+                                  ? `55${cleanPhone}`
+                                  : cleanPhone;
+                              const message =
+                                sub.status === 'pending'
+                                  ? `Olá, ${sub.customerName}! Aqui é da Beck Barbearia. Recebemos seu cadastro para o Clube da Barba no plano ${sub.planName}. Gostaria de confirmar seu plano para ativarmos seu acesso à agenda!`
+                                  : `Olá, ${sub.customerName}! Aqui é da Beck Barbearia. Tudo bem com você?`;
+                              const waUrl = `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
+                              return (
+                                <a
+                                  href={waUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-950/40 transition"
+                                  title={`Conversar com ${sub.customerName} no WhatsApp`}
+                                >
+                                  <WhatsAppIcon className="w-3.5 h-3.5" />
+                                </a>
+                              );
+                            })()}
+
                             <button
                               onClick={() => handleOpenEditSub(sub)}
                               className="p-1.5 rounded border border-white/10 hover:border-brand-gold text-brand-cream/70 hover:text-brand-gold transition"
