@@ -11,10 +11,19 @@ import { productsRepository } from '@/lib/repositories';
 export async function getProducts(): Promise<Product[]> {
   const products = await productsRepository.list();
 
-  // A vitrine principal de produtos da Home exibe exclusivamente cosméticos de cabelo e barba
-  return products.filter((product) => product.showOnHome !== false && product.productType !== 'beverage');
+  // Retorna os produtos e bebidas marcados para exibição na Home
+  return products.filter((product) => product.showOnHome !== false);
+}
+
+/**
+ * Retorna todos os produtos e bebidas cadastrados no catálogo da Beck Barbearia.
+ */
+export async function getAllProducts(): Promise<Product[]> {
+  const products = await productsRepository.list();
+  return [...products];
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   return productsRepository.findBySlug(slug);
 }
+

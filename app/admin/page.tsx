@@ -978,26 +978,20 @@ export default function AdminPage() {
                               )}
                             </div>
 
-                            {/* Visibilidade / Tipo */}
+                            {/* Visibilidade na Home */}
                             <div className="absolute top-3 right-3">
-                              {!isBeverage ? (
-                                <button
-                                  onClick={() => handleToggleProductVisibility(prod.id, !(prod.showOnHome ?? true))}
-                                  className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase flex items-center gap-1 transition ${
-                                    prod.showOnHome !== false
-                                      ? 'bg-black/80 text-brand-gold border border-brand-gold/40'
-                                      : 'bg-black/80 text-zinc-400 border border-white/10'
-                                  }`}
-                                  title={prod.showOnHome !== false ? 'Visível na Home' : 'Oculto na Home'}
-                                >
-                                  {prod.showOnHome !== false ? <Eye size={11} /> : <EyeOff size={11} />}
-                                  <span>{prod.showOnHome !== false ? 'Na Home' : 'Oculto'}</span>
-                                </button>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-black/80 text-brand-cream/70 border border-white/10">
-                                  Bar & Balcão
-                                </span>
-                              )}
+                              <button
+                                onClick={() => handleToggleProductVisibility(prod.id, !(prod.showOnHome ?? true))}
+                                className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase flex items-center gap-1 transition ${
+                                  prod.showOnHome !== false
+                                    ? 'bg-black/80 text-brand-gold border border-brand-gold/40'
+                                    : 'bg-black/80 text-zinc-400 border border-white/10'
+                                }`}
+                                title={prod.showOnHome !== false ? 'Visível na Home' : 'Oculto na Home'}
+                              >
+                                {prod.showOnHome !== false ? <Eye size={11} /> : <EyeOff size={11} />}
+                                <span>{prod.showOnHome !== false ? 'Na Home' : 'Oculto'}</span>
+                              </button>
                             </div>
                           </div>
 

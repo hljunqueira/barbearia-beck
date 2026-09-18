@@ -387,7 +387,7 @@ const App = async () => {
           </div>
         </section>
 
-        {/* Catálogo de Produtos Oficiais */}
+        {/* Catálogo de Produtos Oficiais & Bar */}
         <section
           id="produtos"
           data-testid="products-section"
@@ -395,18 +395,23 @@ const App = async () => {
         >
           <div className="container relative">
             <SectionHeading
-              eyebrow="Linha Exclusiva"
+              eyebrow="Linha Exclusiva &amp; Bar"
               title={
                 <>
-                  Produtos para{' '}
-                  <span className="bg-gold-gradient bg-clip-text text-transparent">cabelo e barba</span>
+                  Produtos &amp;{' '}
+                  <span className="bg-gold-gradient bg-clip-text text-transparent">bebidas selecionadas</span>
                 </>
               }
-              description="Pomadas de alta fixação, óleos nutritivos com fragrâncias nobres e balms para manter seu alinhamento em casa."
+              description="Pomadas de alta fixação, óleos nutritivos para barba, além de cervejas especiais e bebidas geladas para o seu momento na Beck."
             />
 
             <div className="mt-16">
-              <ProductsCatalog products={products} />
+              <ProductsCatalog
+                products={products}
+                limit={6}
+                showViewAll={true}
+                defaultTab="cosmetics"
+              />
             </div>
           </div>
         </section>

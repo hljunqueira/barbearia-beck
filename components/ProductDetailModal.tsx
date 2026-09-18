@@ -50,8 +50,10 @@ export function ProductDetailModal({
     product.inStock &&
     (product.stockQuantity === undefined || product.stockQuantity > 0);
 
+  const isBeverage = product.productType === 'beverage';
+  const itemTypeLabel = isBeverage ? 'na bebida' : 'no produto';
   const buyHref = whatsappLink(
-    `Olá! Tenho interesse no produto ${product.name} (${formatBRL(product.priceInCents)}). Está disponível para retirada na barbearia?`
+    `Olá! Tenho interesse ${itemTypeLabel} ${product.name} (${formatBRL(product.priceInCents)}). Está disponível para consumo ou retirada na barbearia?`
   );
 
   return (
@@ -99,6 +101,14 @@ export function ProductDetailModal({
                 <span className="text-[11px] font-mono tracking-widest text-brand-gold uppercase">
                   {CATEGORY_LABEL[product.category] || product.category}
                 </span>
+                {product.volumeMl && (
+                  <>
+                    <span className="text-white/20">•</span>
+                    <span className="text-[11px] font-mono text-brand-cream/70">
+                      {product.volumeMl}
+                    </span>
+                  </>
+                )}
                 <span className="text-white/20">•</span>
                 <span
                   className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded font-semibold ${
@@ -137,7 +147,7 @@ export function ProductDetailModal({
               {/* Descrição Completa */}
               <div className="mt-5 pt-5 border-t border-white/10 space-y-2">
                 <p className="text-[11px] font-mono uppercase tracking-wider text-brand-cream/60">
-                  Detalhes do Produto & Aplicação
+                  {isBeverage ? 'Detalhes & Informações da Bebida' : 'Detalhes do Produto & Aplicação'}
                 </p>
                 <p className="text-xs sm:text-sm text-brand-cream/80 leading-relaxed whitespace-pre-line">
                   {product.description}

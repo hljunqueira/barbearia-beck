@@ -73,12 +73,13 @@ export async function createProduct(data: {
         inStock: data.inStock ?? (stockQty > 0),
         stockQuantity: stockQty,
         minStockAlert: data.minStockAlert !== undefined ? Number(data.minStockAlert) : 2,
-        showOnHome: data.showOnHome ?? (!isBeverage),
+        showOnHome: data.showOnHome ?? true,
         rating: 5.0,
       } as any,
     });
 
     revalidatePath('/');
+    revalidatePath('/produtos');
     revalidatePath('/admin');
     return {
       ok: true,
@@ -151,6 +152,7 @@ export async function updateProduct(
     });
 
     revalidatePath('/');
+    revalidatePath('/produtos');
     revalidatePath('/admin');
     return {
       ok: true,
@@ -204,6 +206,7 @@ export async function quickAdjustStockQuantity(
     });
 
     revalidatePath('/');
+    revalidatePath('/produtos');
     revalidatePath('/admin');
     return { ok: true, stockQuantity: newQuantity, inStock };
   } catch (error: any) {
@@ -219,6 +222,7 @@ export async function deleteProduct(id: string): Promise<{ ok: boolean; error?: 
     });
 
     revalidatePath('/');
+    revalidatePath('/produtos');
     revalidatePath('/admin');
     return { ok: true };
   } catch (error: any) {
@@ -235,6 +239,7 @@ export async function toggleProductStock(id: string, inStock: boolean): Promise<
     });
 
     revalidatePath('/');
+    revalidatePath('/produtos');
     revalidatePath('/admin');
     return { ok: true };
   } catch (error: any) {
@@ -251,6 +256,7 @@ export async function toggleProductHomeVisibility(id: string, showOnHome: boolea
     });
 
     revalidatePath('/');
+    revalidatePath('/produtos');
     revalidatePath('/admin');
     return { ok: true };
   } catch (error: any) {

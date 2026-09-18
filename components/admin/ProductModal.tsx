@@ -82,7 +82,7 @@ export function ProductModal({
       setInStock(true);
       setStockQuantity(10);
       setMinStockAlert(2);
-      setShowOnHome(initialType !== 'beverage');
+      setShowOnHome(true);
     }
     setError(null);
   }, [product, isOpen, initialType]);
@@ -346,6 +346,27 @@ export function ProductModal({
                 className="w-full bg-black/70 border border-white/15 rounded px-3 py-2 text-xs text-brand-cream font-mono focus:border-brand-gold focus:outline-none transition"
               />
             </div>
+          </div>
+
+          {/* Opção de Exibição na Página Inicial */}
+          <div className="p-3 rounded bg-black/40 border border-white/10 flex items-center justify-between">
+            <div>
+              <span className="text-xs font-mono font-semibold text-brand-cream block">
+                Exibir na Página Inicial (Vitrine da Home)
+              </span>
+              <span className="text-[11px] text-brand-cream/60">
+                Se desativado, o item continuará visível no catálogo completo (/produtos) e no bar.
+              </span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showOnHome}
+                onChange={(e) => setShowOnHome(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-brand-cream after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-gold"></div>
+            </label>
           </div>
 
           {/* GRID: Descrição & Upload Real da Foto */}

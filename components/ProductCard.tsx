@@ -79,6 +79,12 @@ export const ProductCard = ({ product, onOpenDetail }: ProductCardProps) => {
             >
               {isAvailable ? 'Em Estoque' : 'Esgotado'}
             </span>
+
+            {product.volumeMl && (
+              <span className="text-[10px] font-mono text-brand-gold/80 font-medium">
+                {product.volumeMl}
+              </span>
+            )}
           </div>
 
           <h3 className="font-display text-base font-bold leading-snug text-brand-cream group-hover:text-brand-gold transition">
